@@ -69,8 +69,8 @@ impl State for Draft {
     }
 
     // only implement `add_text` for Draft
-    fn add_text(self: &Self, _content: &mut String, _text: &str) {
-        _content.push_str(_text)
+    fn add_text(self: &Self, content: &mut String, text: &str) {
+        content.push_str(text)
     }
 }
 
