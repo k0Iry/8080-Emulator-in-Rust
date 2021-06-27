@@ -9,7 +9,7 @@ use std::ffi::OsStr;
 use std::io::copy;
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:9000").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:9000").unwrap();
     let pool = ThreadPool::new(4);
 
     for stream in listener.incoming() {
@@ -41,6 +41,10 @@ fn content_type(filename: &str) -> String {
             return String::from("Content-Type: ") + "text/html"
         } else if extension == "mkv" {
             return String::from("Content-Type: ") + "video/x-matroska"
+        } else if extension == "jpg" || extension == "jpeg" {
+            return String::from("Content-Type: ") + "image/jpeg"
+        } else if extension == "css" {
+            return String::from("Content-Type: ") + "text/css"
         }
     }
     String::from("Content-Type: ") + "application/octet-stream"
@@ -55,7 +59,13 @@ fn handle_connection(mut stream: TcpStream) {   // need to be mutable, the low-l
 
     let mut iter = request_line.split_whitespace();
     // MATCH: method(GET,POST...) uri(/index.html...) version(which we don't care)
-    let (method, mut uri, _) = (iter.next().unwrap(), iter.next().unwrap(), iter.next().unwrap());
+    let (method, uri) = (iter.next(), iter.next());
+    if None == method || None == uri {
+        return
+    }
+
+    let method = method.unwrap();
+    let mut uri = uri.unwrap();
 
     println!("HTTP Request Headers:");
     loop {
