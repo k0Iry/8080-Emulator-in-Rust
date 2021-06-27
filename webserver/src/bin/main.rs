@@ -55,7 +55,7 @@ fn handle_connection(mut stream: TcpStream) {   // need to be mutable, the low-l
 
     let mut iter = request_line.split_whitespace();
     // MATCH: method(GET,POST...) uri(/index.html...) version(which we don't care)
-    let (method, uri, _) = (iter.next().unwrap(), iter.next().unwrap(), iter.next().unwrap());
+    let (method, mut uri, _) = (iter.next().unwrap(), iter.next().unwrap(), iter.next().unwrap());
 
     println!("HTTP Request Headers:");
     loop {
@@ -72,8 +72,9 @@ fn handle_connection(mut stream: TcpStream) {   // need to be mutable, the low-l
         if uri == "/" {
             ("HTTP/1.1 200 OK", "index.html")
         } else {
-            match fs::metadata(Path::new(&uri[1..])) {
-                Ok(_) => ("HTTP/1.1 200 OK", &uri[1..]),
+            uri = &uri[1..];
+            match fs::metadata(Path::new(uri)) {
+                Ok(_) => ("HTTP/1.1 200 OK", uri),
                 Err(_) => ("HTTP/1.1 404 NOT FOUND", "404.html")
             }
         }
