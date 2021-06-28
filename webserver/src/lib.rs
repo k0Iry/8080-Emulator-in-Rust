@@ -8,8 +8,7 @@ pub struct ThreadPool {
     sender: mpsc::Sender<Message>
 }
 
-type Job = dyn FnOnce() + 'static + Send;
-type JobRef = Box<Job>;
+type JobRef = Box<dyn FnOnce() + 'static + Send>;
 
 enum Message {
     NewJob(JobRef),
