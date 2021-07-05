@@ -3,7 +3,6 @@ use std::fs;
 use std::io::copy;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::io::Error;
 use std::io::ErrorKind;
 use std::net::TcpListener;
 use std::net::TcpStream;
@@ -24,7 +23,7 @@ fn main() {
     }
 }
 
-fn read_line<T>(reader: &mut BufReader<T>) -> Result<String, Error>
+fn read_line<T>(reader: &mut BufReader<T>) -> std::io::Result<String>
 where
     T: Read,
 {
