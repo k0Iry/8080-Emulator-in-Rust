@@ -27,18 +27,18 @@ fn merge_two_lists(l1: Option<Box<ListNode>>, l2: Option<Box<ListNode>>) -> Opti
 
     // Option implements Deref trait, and so does Box,
     // so Deref coercion is happening here...
-    let mut result = head.as_deref_mut().unwrap();
+    let mut result = head.as_mut().unwrap();
 
     while l1 != None && l2 != None {
         if l1.as_ref().unwrap().val < l2.as_ref().unwrap().val {
             result.next = l1.clone();
-            l1 = l1.as_ref().unwrap().next.clone();
+            l1 = l1.unwrap().next;
         }
         else {
             result.next = l2.clone();
-            l2 = l2.as_ref().unwrap().next.clone();
+            l2 = l2.unwrap().next;
         }
-        result = result.next.as_deref_mut().unwrap();
+        result = result.next.as_mut().unwrap();
     }
 
     if l1 != None {
@@ -47,7 +47,7 @@ fn merge_two_lists(l1: Option<Box<ListNode>>, l2: Option<Box<ListNode>>) -> Opti
         result.next = l2;
     }
 
-    head.as_ref().unwrap().next.clone()
+    head.unwrap().next
 }
 
 pub fn add_two_numbers(l1: Option<Box<ListNode>>, l2: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
