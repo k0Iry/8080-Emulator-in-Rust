@@ -50,6 +50,41 @@ fn merge_two_lists(l1: Option<Box<ListNode>>, l2: Option<Box<ListNode>>) -> Opti
     head.as_ref().unwrap().next.clone()
 }
 
+pub fn add_two_numbers(l1: Option<Box<ListNode>>, l2: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
+    let mut carry = 0;
+    let mut result = Some(Box::new(ListNode::new(-1)));
+    let mut result_ref = result.as_mut().unwrap();
+
+    let (mut l1, mut l2) = (l1, l2);
+
+    while l1 != None && l2 != None {
+        let value = l1.as_ref().unwrap().val + l2.as_ref().unwrap().val + carry;
+        result_ref.next = Some(Box::new(ListNode::new(value % 10)));
+        carry = value / 10;
+        l1 = l1.unwrap().next;
+        l2 = l2.unwrap().next;
+        result_ref = result_ref.next.as_mut().unwrap();
+    }
+
+    if l2 != None {
+        l1 = l2
+    }
+
+    while l1 != None {
+        let value = l1.as_ref().unwrap().val + carry;
+        result_ref.next = Some(Box::new(ListNode::new(value % 10)));
+        carry = value / 10;
+        l1 = l1.unwrap().next;
+        result_ref = result_ref.next.as_mut().unwrap();
+    }
+
+    if carry > 0 {
+        result_ref.next = Some(Box::new(ListNode::new(1)));
+    }
+
+    result.unwrap().next
+}
+
 fn main() {
     
 }
