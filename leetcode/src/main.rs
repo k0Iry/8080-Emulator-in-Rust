@@ -163,4 +163,26 @@ pub fn two_sum(numbers: Vec<i32>, target: i32) -> Vec<i32> {
     result
 }
 
+pub fn find_duplicate(nums: Vec<i32>) -> i32 {
+    let mut slow = nums[0] as i32;
+    let mut fast = nums[0] as i32;
+
+    loop {
+        slow = nums[slow as usize];
+        fast = nums[nums[fast as usize] as usize];
+        if slow == fast {
+            break;
+        }
+    }
+
+    let mut result = nums[0];
+    // move slow
+    while slow != result {
+        slow = nums[slow as usize];
+        result = nums[result as usize];
+    }
+
+    result
+}
+
 fn main() {}
