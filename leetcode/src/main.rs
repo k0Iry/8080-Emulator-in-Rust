@@ -256,7 +256,7 @@ fn dfs(root: &Option<Rc<RefCell<TreeNode>>>, left_most: bool, right_most: bool, 
     dfs(&root_ref.left, left_most, if root_ref.right == None {right_most} else {false}, results);
     dfs(&root_ref.right, if root_ref.left == None {left_most} else {false}, right_most, results);
 
-    if right_most && !left_most && (root_ref.left != None || root_ref.right != None) {
+    if right_most && (root_ref.left != None || root_ref.right != None) {
         results.push(root_ref.val)
     }
 }
