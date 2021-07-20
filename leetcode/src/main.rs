@@ -185,15 +185,15 @@ pub fn find_duplicate(nums: Vec<i32>) -> i32 {
     result
 }
 
-use libc::INT_MIN;
 use libc::INT_MAX;
+use libc::INT_MIN;
 use std::cmp;
 
 pub fn find_median_sorted_arrays(nums1: Vec<i32>, nums2: Vec<i32>) -> f64 {
     let len1 = nums1.len();
     let len2 = nums2.len();
     if len1 > len2 {
-        return find_median_sorted_arrays(nums2, nums1)
+        return find_median_sorted_arrays(nums2, nums1);
     }
 
     let mut l = 0;
@@ -202,20 +202,19 @@ pub fn find_median_sorted_arrays(nums1: Vec<i32>, nums2: Vec<i32>) -> f64 {
     while l <= r {
         let mid1 = l + (r - l) / 2;
         let mid2 = (len1 + len2) / 2 - mid1;
-        
-        let l1 = if mid1 == 0 {INT_MIN} else {nums1[mid1 - 1]};
-        let r1 = if mid1 == 0 {INT_MIN} else {nums1[mid1]};
 
-        let l2 = if mid2 == 0 {INT_MAX} else {nums2[mid2 - 1]};
-        let r2 = if mid2 == 0 {INT_MAX} else {nums2[mid2]};
+        let l1 = if mid1 == 0 { INT_MIN } else { nums1[mid1 - 1] };
+        let r1 = if mid1 == 0 { INT_MIN } else { nums1[mid1] };
 
+        let l2 = if mid2 == 0 { INT_MAX } else { nums2[mid2 - 1] };
+        let r2 = if mid2 == 0 { INT_MAX } else { nums2[mid2] };
         if l1 > r2 {
             r = mid1 - 1
         } else if l2 > r1 {
             l = mid1 + 1
         } else {
             if (len1 + len2) % 2 == 1 {
-                return cmp::min(r1, r2) as f64
+                return cmp::min(r1, r2) as f64;
             } else {
                 return (cmp::max(l1, l2) + cmp::min(r1, r2)) as f64 / 2.0;
             }
@@ -223,6 +222,53 @@ pub fn find_median_sorted_arrays(nums1: Vec<i32>, nums2: Vec<i32>) -> f64 {
     }
 
     0.0
+}
+
+use std::cell::RefCell;
+use std::rc::Rc;
+#[derive(Debug, PartialEq, Eq)]
+pub struct TreeNode {
+    pub val: i32,
+    pub left: Option<Rc<RefCell<TreeNode>>>,
+    pub right: Option<Rc<RefCell<TreeNode>>>,
+}
+
+impl TreeNode {
+    #[inline]
+    pub fn new(val: i32) -> Self {
+        TreeNode {
+            val,
+            left: None,
+            right: None,
+        }
+    }
+}
+
+fn dfs(root: &Option<Rc<RefCell<TreeNode>>>, left_most: bool, right_most: bool, results: &mut Vec<i32>) {
+    if *root == None {
+        return
+    }
+    let root_ref = root.as_ref().unwrap().borrow();
+    if left_most || (root_ref.left == None && root_ref.right == None) {
+        results.push(root_ref.val)
+    }
+
+    dfs(&root_ref.left, left_most, if root_ref.right == None {right_most} else {false}, results);
+    dfs(&root_ref.right, if root_ref.left == None {left_most} else {false}, right_most, results);
+
+    if right_most && !left_most && (root_ref.left != None || root_ref.right != None) {
+        results.push(root_ref.val)
+    }
+}
+
+pub fn boundary_of_binary_tree(root: Option<Rc<RefCell<TreeNode>>>) -> Vec<i32> {
+    let mut results: Vec<i32> = Vec::new();
+    let root_ref = root.as_ref().unwrap().borrow();
+    results.push(root_ref.val);
+    dfs(&root_ref.left, true, false, &mut results);
+    dfs(&root_ref.right, false, true, &mut results);
+
+    results
 }
 
 fn main() {}
