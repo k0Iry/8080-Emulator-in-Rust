@@ -244,17 +244,40 @@ impl TreeNode {
     }
 }
 
-fn dfs(root: &Option<Rc<RefCell<TreeNode>>>, left_most: bool, right_most: bool, results: &mut Vec<i32>) {
+fn dfs(
+    root: &Option<Rc<RefCell<TreeNode>>>,
+    left_most: bool,
+    right_most: bool,
+    results: &mut Vec<i32>,
+) {
     if *root == None {
-        return
+        return;
     }
     let root_ref = root.as_ref().unwrap().borrow();
     if left_most || (root_ref.left == None && root_ref.right == None) {
         results.push(root_ref.val)
     }
 
-    dfs(&root_ref.left, left_most, if root_ref.right == None {right_most} else {false}, results);
-    dfs(&root_ref.right, if root_ref.left == None {left_most} else {false}, right_most, results);
+    dfs(
+        &root_ref.left,
+        left_most,
+        if root_ref.right == None {
+            right_most
+        } else {
+            false
+        },
+        results,
+    );
+    dfs(
+        &root_ref.right,
+        if root_ref.left == None {
+            left_most
+        } else {
+            false
+        },
+        right_most,
+        results,
+    );
 
     if right_most && (root_ref.left != None || root_ref.right != None) {
         results.push(root_ref.val)
@@ -269,6 +292,177 @@ pub fn boundary_of_binary_tree(root: Option<Rc<RefCell<TreeNode>>>) -> Vec<i32> 
     dfs(&root_ref.right, false, true, &mut results);
 
     results
+}
+
+pub fn backtrack(results: &mut Vec<String>, current: &mut String, open: i32, close: i32, max: i32) {
+    if current.len() as i32 == max * 2 {
+        results.push(current.clone());
+        return;
+    }
+
+    if open < max {
+        current.push_str("(");
+        backtrack(results, current, open + 1, close, max);
+        current.pop().unwrap();
+    }
+    if close < open {
+        current.push_str(")");
+        backtrack(results, current, open, close + 1, max);
+        current.pop().unwrap();
+    }
+}
+
+pub fn generate_parenthesis(n: i32) -> Vec<String> {
+    let mut results = vec![];
+    let mut current = String::new();
+    backtrack(results.as_mut(), &mut current, 0, 0, n);
+
+    results
+}
+
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::{Hash, Hasher};
+
+struct point {
+    x: i32,
+    y: i32,
+}
+
+impl point {
+    fn new(x: i32, y: i32) -> Self {
+        point { x, y }
+    }
+
+    fn add(&self, another: &Self) -> Self {
+        point {
+            x: self.x + another.x,
+            y: self.y + another.y,
+        }
+    }
+
+    fn equal(&self, another: &Self) -> bool {
+        self.x == another.x && self.y == another.y
+    }
+}
+
+impl Clone for point {
+    fn clone(&self) -> Self {
+        point::new(self.x, self.y)
+    }
+}
+
+impl PartialEq for point {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
+}
+
+impl Eq for point {}
+
+impl Hash for point {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.x.hash(state);
+        self.y.hash(state);
+    }
+}
+
+pub fn dfs_min_knight_moves(x: i32, y: i32, save: &mut HashMap<String, i32>) -> i32 {
+    let mut key = x.to_string();
+    key.push_str(",");
+    key.push_str(&y.to_string()[..]);
+    if save.get(&key) != None {
+        return save[&key];
+    }
+    if x == 0 && y == 0 {
+        return 0;
+    }
+    if x + y == 2 {
+        return 2;
+    }
+
+    let val = cmp::min(
+        dfs_min_knight_moves((x - 1).abs(), (y - 2).abs(), save),
+        dfs_min_knight_moves((x - 2).abs(), (y - 1).abs(), save),
+    ) + 1;
+    save.insert(key, val);
+    val
+}
+
+pub fn min_knight_moves(x: i32, y: i32) -> i32 {
+    let mut steps = 0;
+    let moves = [
+        point::new(2, 1),
+        point::new(2, -1),
+        point::new(1, 2),
+        point::new(1, -2),
+        point::new(-2, 1),
+        point::new(-2, -1),
+        point::new(-1, 2),
+        point::new(-1, -2),
+    ];
+    let start = point::new(0, 0);
+    let target = point::new(x, y);
+    let mut queue: VecDeque<point> = VecDeque::new();
+    let mut visited: HashSet<point> = HashSet::new();
+    queue.push_back(start);
+    while !queue.is_empty() {
+        let queue_size = queue.len();
+        for _ in 0..queue_size {
+            let current = queue.pop_front().unwrap();
+            if visited.contains(&current) {
+                continue;
+            }
+            visited.insert(current.clone());
+            if target.equal(&current) {
+                return steps;
+            } else {
+                for next_step in &moves {
+                    let new_move = current.add(next_step);
+                    if !visited.contains(&new_move) {
+                        queue.push_back(new_move)
+                    }
+                }
+            }
+        }
+
+        steps += 1
+    }
+    steps
+}
+
+struct WordDistance {
+    wordsDict: Vec<String>,
+}
+
+/**
+ * `&self` means the method takes an immutable reference.
+ * If you need a mutable reference, change it to `&mut self` instead.
+ */
+impl WordDistance {
+    fn new(wordsDict: Vec<String>) -> Self {
+        WordDistance { wordsDict }
+    }
+    fn shortest(&self, word1: String, word2: String) -> i32 {
+        let mut last_access: i32 = -1;
+
+        let number_of_words = self.wordsDict.len();
+        let mut answer = number_of_words as i32;
+
+        for index in 0..number_of_words {
+            let string = &self.wordsDict[index];
+            if string == &word1 || string == &word2 {
+                if last_access != -1 && string != &self.wordsDict[last_access as usize] {
+                    answer = cmp::min(answer, (last_access - index as i32).abs())
+                }
+                last_access = index as i32
+            }
+        }
+
+        answer
+    }
 }
 
 fn main() {}
