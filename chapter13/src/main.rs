@@ -5,8 +5,7 @@ use std::collections::HashMap;
 struct Cacher<T, K, V>
 where
     T: Fn(&K) -> V,
-    K: std::hash::Hash + Eq,
-    V: Copy
+    K: std::hash::Hash + Eq + Copy + std::fmt::Debug,
 {
     calculation: T,
     table: HashMap<K, V>,
@@ -15,8 +14,7 @@ where
 impl<T, K, V> Cacher<T, K, V>
 where
     T: Fn(&K) -> V,
-    K: std::hash::Hash + Eq,
-    V: Copy
+    K: std::hash::Hash + Eq + Copy + std::fmt::Debug,
 {
     fn new(calculation: T) -> Cacher<T, K, V> {
         Cacher {
@@ -25,15 +23,13 @@ where
         }
     }
 
-    fn value(&mut self, arg: K) -> V {
-        if let Some(value) = self.table.get(&arg) {
-            *value
+    fn value(&mut self, key: K) -> &V {
+        if let None = self.table.get(&key) {
+            self.table.insert(key, (self.calculation)(&key));
         } else {
-            let result = (self.calculation)(&arg);
-            self.table.insert(arg, result);
-            result
+            println!("Hit key: {:?}", key);
         }
-        // *self.table.entry(arg).or_insert((self.calculation)(arg))
+        self.table.get(&key).unwrap()
     }
 }
 
