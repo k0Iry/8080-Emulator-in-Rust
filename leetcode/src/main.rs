@@ -465,4 +465,52 @@ impl WordDistance {
     }
 }
 
+pub fn expressive_words(s: String, words: Vec<String>) -> i32 {
+    let mut result = 0;
+    let target_length = s.len();
+    for word in words {
+        let word_length = word.len();
+        if word_length > target_length {
+            continue;
+        }
+        let mut start1 = 0;
+        let mut start2 = 0;
+        let matched = loop {
+            if start1 < target_length && start2 < word_length {
+                if s.as_bytes()[start1] != word.as_bytes()[start2] {
+                    break false;
+                } else {
+                    let mut count1 = 0;
+                    let mut count2 = 0;
+                    while start1 < target_length - 1
+                        && s.as_bytes()[start1] == s.as_bytes()[start1 + 1]
+                    {
+                        start1 += 1;
+                        count1 += 1;
+                    }
+                    start1 += 1;
+                    while start2 < word_length - 1
+                        && word.as_bytes()[start2] == word.as_bytes()[start2 + 1]
+                    {
+                        start2 += 1;
+                        count2 += 1;
+                    }
+                    start2 += 1;
+                    if count2 > count1 || (count1 > count2 && count1 < 2) {
+                        break false;
+                    }
+                }
+            } else {
+                break true;
+            }
+        };
+
+        if matched && start1 == target_length && start2 == word_length {
+            result += 1
+        }
+    }
+
+    result
+}
+
 fn main() {}
