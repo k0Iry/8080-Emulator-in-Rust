@@ -468,42 +468,50 @@ impl WordDistance {
 pub fn expressive_words(s: String, words: Vec<String>) -> i32 {
     let mut result = 0;
     let target_length = s.len();
-    let s_bytes = s.into_bytes();
     for word in words {
-        let word_length = word.len();
-        let word_bytes = word.as_bytes();
-        if word_length > target_length {
+        if word.len() > target_length {
             continue;
         }
-        let mut start1 = 0;
-        let mut start2 = 0;
+        let mut s_bytes = s.as_bytes().iter();
+        let mut word_bytes = word.as_bytes().iter();
+        let mut current1 = s_bytes.next();
+        let mut current2 = word_bytes.next();
         let matched = loop {
-            if start1 < target_length && start2 < word_length {
-                if s_bytes[start1] != word_bytes[start2] {
-                    break false;
-                } else {
+            match (current1, current2) {
+                (None, Some(_)) | (Some(_), None) => break false,
+                (None, None) => break true,
+                (Some(_), Some(_)) => {
+                    if current1 != current2 {
+                        break false;
+                    }
                     let mut count1 = 0;
                     let mut count2 = 0;
-                    while start1 < target_length - 1 && s_bytes[start1] == s_bytes[start1 + 1] {
-                        start1 += 1;
-                        count1 += 1;
+                    loop {
+                        let next = s_bytes.next();
+                        if current1 == next {
+                            count1 += 1
+                        } else {
+                            current1 = next;
+                            break;
+                        }
                     }
-                    start1 += 1;
-                    while start2 < word_length - 1 && word_bytes[start2] == word_bytes[start2 + 1] {
-                        start2 += 1;
-                        count2 += 1;
+                    loop {
+                        let next = word_bytes.next();
+                        if current2 == next {
+                            count2 += 1
+                        } else {
+                            current2 = next;
+                            break;
+                        }
                     }
-                    start2 += 1;
                     if count2 > count1 || (count1 > count2 && count1 < 2) {
                         break false;
                     }
                 }
-            } else {
-                break true;
             }
         };
 
-        if matched && start1 == target_length && start2 == word_length {
+        if matched {
             result += 1
         }
     }
