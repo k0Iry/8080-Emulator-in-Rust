@@ -109,6 +109,18 @@ macro_rules! generate_increment_reg_pair {
     };
 }
 
+macro_rules! generate_decrement_reg_pair {
+    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
+        $(
+            fn $func(&mut self) {
+                let big_endian_bytes = (construct_address((self.$reg_lo, self.$reg_hi)) - 1).to_be_bytes();
+                self.$reg_hi = big_endian_bytes[0];
+                self.$reg_lo = big_endian_bytes[1];
+            }
+        )*
+    };
+}
+
 impl<'a> Cpu8080<'a> {
     fn add(&mut self, reg: u8) {
         let result = self.reg_a as u16 + reg as u16;
@@ -230,6 +242,12 @@ impl<'a> Cpu8080<'a> {
         (inx_h, reg_h, reg_l)
     ];
 
+    generate_decrement_reg_pair![
+        (dcx_b, reg_b, reg_c),
+        (dcx_d, reg_d, reg_e),
+        (dcx_h, reg_h, reg_l)
+    ];
+
     generate_move_from_mem![
         (move_from_mem_to_b, reg_b),
         (move_from_mem_to_c, reg_c),
@@ -262,13 +280,25 @@ impl<'a> Cpu8080<'a> {
             0x00 | 0x08 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0x40 | 0x49 | 0x52 | 0x5b
             | 0x64 | 0x6d | 0x7f | 0xcb | 0xd9 | 0xdd | 0xed | 0xfd => (),
             0x01 => self.load_data_into_reg_pair_b()?,
+            0x02 => self.store_to_ram(
+                construct_address((self.reg_c, self.reg_b)).into(),
+                self.reg_a,
+            )?,
             0x03 => self.inx_b(),
+            0x0b => self.dcx_b(),
             0x11 => self.load_data_into_reg_pair_d()?,
+            0x12 => self.store_to_ram(
+                construct_address((self.reg_e, self.reg_d)).into(),
+                self.reg_a,
+            )?,
             0x13 => self.inx_d(),
+            0x1b => self.dcx_d(),
             0x21 => self.load_data_into_reg_pair_h()?,
             0x23 => self.inx_h(),
+            0x2b => self.dcx_h(),
             0x31 => self.load_stack_pointer_from_operand()?,
             0x33 => self.sp += 1,
+            0x3b => self.sp -= 1,
             0x41 => self.reg_b = self.reg_c,
             0x42 => self.reg_b = self.reg_d,
             0x43 => self.reg_b = self.reg_e,
@@ -461,7 +491,7 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn jmp(&mut self) -> Result<()> {
-        Ok(self.pc = construct_address(self.load_d16_operand()?))
+        Ok(self.pc = construct_address(self.load_d16_operand()?) - 1)
     }
 }
 
