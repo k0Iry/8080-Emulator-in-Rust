@@ -1,24 +1,24 @@
 use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result};
 
-pub const RAM_SIZE: usize = 0x2000;
+const RAM_SIZE: usize = 0x2000;
 pub const ROM_SIZE: usize = 0x2000;
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct Cpu8080<'a> {
-    pub ram: [u8; RAM_SIZE],
-    pub rom: &'a [u8; ROM_SIZE],
-    pub sp: u16,
-    pub pc: u16,
-    pub reg_a: u8,
-    pub reg_b: u8,
-    pub reg_c: u8,
-    pub reg_d: u8,
-    pub reg_e: u8,
-    pub reg_h: u8,
-    pub reg_l: u8,
-    pub conditon_codes: ConditionCodes,
-    pub interrupt_enabled: u8,
+    ram: [u8; RAM_SIZE],
+    rom: &'a [u8; ROM_SIZE],
+    sp: u16,
+    pc: u16,
+    reg_a: u8,
+    reg_b: u8,
+    reg_c: u8,
+    reg_d: u8,
+    reg_e: u8,
+    reg_h: u8,
+    reg_l: u8,
+    conditon_codes: ConditionCodes,
+    interrupt_enabled: u8,
 }
 
 macro_rules! generate_move_from_mem {
@@ -37,7 +37,7 @@ macro_rules! generate_store_reg_to_ram {
         $(
             fn $func(&mut self) -> Result<()> {
                 let mem_addr = construct_address((self.reg_l, self.reg_h));
-                Ok(self.store_to_ram(mem_addr.into(), self.$reg)?)
+                self.store_to_ram(mem_addr.into(), self.$reg)
             }
         )*
     };
@@ -122,6 +122,24 @@ macro_rules! generate_decrement_reg_pair {
 }
 
 impl<'a> Cpu8080<'a> {
+    pub fn new(rom: &'a [u8; ROM_SIZE]) -> Self {
+        Cpu8080 {
+            reg_a: 0,
+            reg_b: 0,
+            reg_c: 0,
+            reg_d: 0,
+            reg_e: 0,
+            reg_h: 0,
+            reg_l: 0,
+            sp: 0,
+            pc: 0,
+            rom,
+            ram: [0; RAM_SIZE],
+            conditon_codes: ConditionCodes::default(),
+            interrupt_enabled: 0,
+        }
+    }
+
     fn add(&mut self, reg: u8) {
         let result = self.reg_a as u16 + reg as u16;
         self.reg_a = self.set_condition_bits(result, result > u8::MAX.into());
@@ -178,62 +196,68 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
-        Ok(*self
-            .ram
-            .get((addr - ROM_SIZE) as usize)
-            .ok_or(MemoryOutOfBounds)?)
+        Ok(*self.ram.get(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)?)
     }
 
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
-        Ok(*self.ram.get_mut(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)? = value)
+        *self.ram.get_mut(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)? = value;
+        Ok(())
     }
 
     fn adi(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
         self.pc += 1;
-        Ok(self.add(imm))
+        self.add(imm);
+        Ok(())
     }
 
     fn aci(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
         self.pc += 1;
-        Ok(self.adc(imm))
+        self.adc(imm);
+        Ok(())
     }
 
     fn add_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
         let value = self.load_byte_from_ram(mem_addr.into())?;
-        Ok(self.add(value))
+        self.add(value);
+        Ok(())
     }
 
     fn sub_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
         let value = self.load_byte_from_ram(mem_addr.into())?;
-        Ok(self.sub(value))
+        self.sub(value);
+        Ok(())
     }
 
     fn adc_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
         let value = self.load_byte_from_ram(mem_addr.into())?;
-        Ok(self.adc(value))
+        self.adc(value);
+        Ok(())
     }
 
     fn sbb_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
         let value = self.load_byte_from_ram(mem_addr.into())?;
-        Ok(self.sbb(value))
+        self.sbb(value);
+        Ok(())
     }
 
     fn sui(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
         self.pc += 1;
-        Ok(self.sub(imm))
+        self.sub(imm);
+        Ok(())
     }
 
     fn sbi(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
         self.pc += 1;
-        Ok(self.sbb(imm))
+        self.sbb(imm);
+        Ok(())
     }
 
     generate_increment_reg_pair![
@@ -274,7 +298,14 @@ impl<'a> Cpu8080<'a> {
         (load_data_into_reg_pair_h, reg_h, reg_l)
     ];
 
-    pub fn execute(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<()> {
+        while self.pc < ROM_SIZE as u16 {
+            self.execute()?
+        }
+        Ok(())
+    }
+
+    fn execute(&mut self) -> Result<()> {
         let opcode = self.rom.get(self.pc as usize).ok_or(MemoryOutOfBounds)?;
         match *opcode {
             0x00 | 0x08 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0x40 | 0x49 | 0x52 | 0x5b
@@ -445,7 +476,8 @@ impl<'a> Cpu8080<'a> {
             self.ram[self.sp as usize - 2 - ROM_SIZE],
         ) = (pc_in_bytes[0], pc_in_bytes[1]);
         self.sp -= 2;
-        Ok(self.pc = construct_address(self.load_d16_operand()?))
+        self.pc = construct_address(self.load_d16_operand()?);
+        Ok(())
     }
 
     generate_return_on_condition![
@@ -491,7 +523,8 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn jmp(&mut self) -> Result<()> {
-        Ok(self.pc = construct_address(self.load_d16_operand()?) - 1)
+        self.pc = construct_address(self.load_d16_operand()?) - 1;
+        Ok(())
     }
 }
 

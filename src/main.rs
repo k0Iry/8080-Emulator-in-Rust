@@ -3,7 +3,7 @@ use std::{
     io::{BufReader, Read},
 };
 
-use emulator::{ConditionCodes, Cpu8080, Result, RomReadFailure, RAM_SIZE};
+use emulator::{Cpu8080, Result, RomReadFailure, ROM_SIZE};
 
 /// Brief information of registers and instructions
 /// The 8080 provides the programmer with an 8-bit ac- cumulator and 6 additional 8-bit "scratchpad" registers.
@@ -49,24 +49,9 @@ fn main() -> Result<()> {
     for file in files {
         let bytes = BufReader::new(File::open(file)?).bytes();
         let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
-        let mut cpu = Cpu8080 {
-            reg_a: 0,
-            reg_b: 0,
-            reg_c: 0,
-            reg_d: 0,
-            reg_e: 0,
-            reg_h: 0,
-            reg_l: 0,
-            sp: 0,
-            pc: 0,
-            rom: &rom.try_into().map_err(|_| RomReadFailure)?,
-            ram: [0; RAM_SIZE],
-            conditon_codes: ConditionCodes::default(),
-            interrupt_enabled: 0,
-        };
-        while cpu.pc < 0x2000 {
-            cpu.execute()?
-        }
+        let rom: &[u8; ROM_SIZE] = &rom.try_into().map_err(|_| RomReadFailure)?;
+        let mut cpu = Cpu8080::new(rom);
+        cpu.run()?
     }
     Ok(())
 }
