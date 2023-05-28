@@ -476,7 +476,7 @@ impl<'a> Cpu8080<'a> {
             self.ram[self.sp as usize - 2 - ROM_SIZE],
         ) = (pc_in_bytes[0], pc_in_bytes[1]);
         self.sp -= 2;
-        self.pc = construct_address(self.load_d16_operand()?);
+        self.pc = construct_address(self.load_d16_operand()?) - 1;
         Ok(())
     }
 
