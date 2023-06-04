@@ -121,6 +121,28 @@ macro_rules! generate_decrement_reg_pair {
     };
 }
 
+macro_rules! generate_increment_reg {
+    ( $( ($func:ident, $reg:ident) ),* ) => {
+        $(
+            fn $func(&mut self) {
+                self.$reg += 1;
+                self.set_condition_bits_inc(self.$reg);
+            }
+        )*
+    };
+}
+
+macro_rules! generate_decrement_reg {
+    ( $( ($func:ident, $reg:ident) ),* ) => {
+        $(
+            fn $func(&mut self) {
+                self.$reg -= 1;
+                self.set_condition_bits_inc(self.$reg);
+            }
+        )*
+    };
+}
+
 impl<'a> Cpu8080<'a> {
     pub fn new(rom: &'a [u8; ROM_SIZE]) -> Self {
         Cpu8080 {
@@ -142,12 +164,12 @@ impl<'a> Cpu8080<'a> {
 
     fn add(&mut self, reg: u8) {
         let result = self.reg_a as u16 + reg as u16;
-        self.reg_a = self.set_condition_bits(result, result > u8::MAX.into());
+        self.reg_a = self.set_condition_bits_add(result, result > u8::MAX.into());
     }
 
     fn sub(&mut self, reg: u8) {
         let result = self.reg_a as u16 + reg.wrapping_neg() as u16;
-        self.reg_a = self.set_condition_bits(result, result <= u8::MAX.into());
+        self.reg_a = self.set_condition_bits_add(result, result <= u8::MAX.into());
     }
 
     fn adc(&mut self, reg: u8) {
@@ -157,7 +179,7 @@ impl<'a> Cpu8080<'a> {
             0
         };
         let result = self.reg_a as u16 + reg as u16 + carry;
-        self.reg_a = self.set_condition_bits(result, result > u8::MAX.into());
+        self.reg_a = self.set_condition_bits_add(result, result > u8::MAX.into());
     }
 
     fn sbb(&mut self, reg: u8) {
@@ -167,32 +189,36 @@ impl<'a> Cpu8080<'a> {
             0
         };
         let result = self.reg_a as u16 + reg.wrapping_neg() as u16 + carry.wrapping_neg() as u16;
-        self.reg_a = self.set_condition_bits(result, result <= u8::MAX.into());
+        self.reg_a = self.set_condition_bits_add(result, result <= u8::MAX.into());
     }
 
-    fn set_condition_bits(&mut self, result: u16, is_carry: bool) -> u8 {
+    fn set_condition_bits_add(&mut self, result: u16, is_carry: bool) -> u8 {
         let lsb = result as u8;
-        if lsb == 0 {
-            self.conditon_codes.set_zero();
-        } else {
-            self.conditon_codes.reset_zero();
-        }
-        if lsb >= 0x80 {
-            self.conditon_codes.set_sign();
-        } else {
-            self.conditon_codes.reset_sign();
-        }
+        self.set_condition_bits_inc(lsb);
         if is_carry {
             self.conditon_codes.set_carry();
         } else {
             self.conditon_codes.reset_carry();
         }
-        if lsb.count_ones() % 2 == 0 {
+        lsb
+    }
+
+    fn set_condition_bits_inc(&mut self, result: u8) {
+        if result == 0 {
+            self.conditon_codes.set_zero();
+        } else {
+            self.conditon_codes.reset_zero();
+        }
+        if result >= 0x80 {
+            self.conditon_codes.set_sign();
+        } else {
+            self.conditon_codes.reset_sign();
+        }
+        if result.count_ones() % 2 == 0 {
             self.conditon_codes.set_parity();
         } else {
             self.conditon_codes.reset_parity();
         }
-        lsb
     }
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
@@ -206,14 +232,12 @@ impl<'a> Cpu8080<'a> {
 
     fn adi(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
-        self.pc += 1;
         self.add(imm);
         Ok(())
     }
 
     fn aci(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
-        self.pc += 1;
         self.adc(imm);
         Ok(())
     }
@@ -248,14 +272,12 @@ impl<'a> Cpu8080<'a> {
 
     fn sui(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
-        self.pc += 1;
         self.sub(imm);
         Ok(())
     }
 
     fn sbi(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
-        self.pc += 1;
         self.sbb(imm);
         Ok(())
     }
@@ -271,6 +293,38 @@ impl<'a> Cpu8080<'a> {
         (dcx_d, reg_d, reg_e),
         (dcx_h, reg_h, reg_l)
     ];
+
+    generate_increment_reg![
+        (inr_b, reg_b),
+        (inr_c, reg_c),
+        (inr_d, reg_d),
+        (inr_e, reg_e),
+        (inr_h, reg_h),
+        (inr_l, reg_l),
+        (inr_a, reg_a)
+    ];
+
+    generate_decrement_reg![
+        (dcr_b, reg_b),
+        (dcr_c, reg_c),
+        (dcr_d, reg_d),
+        (dcr_e, reg_e),
+        (dcr_h, reg_h),
+        (dcr_l, reg_l),
+        (drc_a, reg_a)
+    ];
+
+    fn inr_m(&mut self) -> Result<()> {
+        let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
+        self.store_to_ram(addr, self.load_byte_from_ram(addr)? + 1)?;
+        Ok(())
+    }
+
+    fn dcr_m(&mut self) -> Result<()> {
+        let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
+        self.store_to_ram(addr, self.load_byte_from_ram(addr)? - 1)?;
+        Ok(())
+    }
 
     generate_move_from_mem![
         (move_from_mem_to_b, reg_b),
@@ -316,20 +370,47 @@ impl<'a> Cpu8080<'a> {
                 self.reg_a,
             )?,
             0x03 => self.inx_b(),
+            0x04 => self.inr_b(),
+            0x05 => self.dcr_b(),
+            0x06 => self.reg_b = self.load_d8_operand()?,
             0x0b => self.dcx_b(),
+            0x0c => self.inr_c(),
+            0x0d => self.dcr_c(),
+            0x0e => self.reg_c = self.load_d8_operand()?,
             0x11 => self.load_data_into_reg_pair_d()?,
             0x12 => self.store_to_ram(
                 construct_address((self.reg_e, self.reg_d)).into(),
                 self.reg_a,
             )?,
             0x13 => self.inx_d(),
+            0x14 => self.inr_d(),
+            0x15 => self.dcr_d(),
+            0x16 => self.reg_d = self.load_d8_operand()?,
             0x1b => self.dcx_d(),
+            0x1c => self.inr_e(),
+            0x1d => self.dcr_e(),
+            0x1e => self.reg_e = self.load_d8_operand()?,
             0x21 => self.load_data_into_reg_pair_h()?,
             0x23 => self.inx_h(),
+            0x24 => self.inr_h(),
+            0x25 => self.dcr_h(),
+            0x26 => self.reg_h = self.load_d8_operand()?,
             0x2b => self.dcx_h(),
+            0x2c => self.inr_l(),
+            0x2d => self.dcr_l(),
+            0x2e => self.reg_l = self.load_d8_operand()?,
             0x31 => self.load_stack_pointer_from_operand()?,
             0x33 => self.sp += 1,
+            0x34 => self.inr_m()?,
+            0x35 => self.dcr_m()?,
+            0x36 => {
+                let imm = self.load_d8_operand()?;
+                self.store_to_ram(construct_address((self.reg_l, self.reg_h)).into(), imm)?
+            }
             0x3b => self.sp -= 1,
+            0x3c => self.inr_a(),
+            0x3d => self.drc_a(),
+            0x3e => self.reg_a = self.load_d8_operand()?,
             0x41 => self.reg_b = self.reg_c,
             0x42 => self.reg_b = self.reg_d,
             0x43 => self.reg_b = self.reg_e,
@@ -508,11 +589,13 @@ impl<'a> Cpu8080<'a> {
         ))
     }
 
-    fn load_d8_operand(&self) -> Result<u8> {
-        Ok(*self
+    fn load_d8_operand(&mut self) -> Result<u8> {
+        let value = *self
             .rom
             .get((self.pc + 1) as usize)
-            .ok_or(MemoryOutOfBounds)?)
+            .ok_or(MemoryOutOfBounds)?;
+        self.pc += 1;
+        Ok(value)
     }
 
     generate_jump_on_condition![
