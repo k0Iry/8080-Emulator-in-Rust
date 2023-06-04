@@ -65,4 +65,16 @@ impl ConditionCodes {
     pub fn is_parity(&self) -> bool {
         self.shr(3u8).bitand(1) == 1
     }
+
+    pub fn set_aux_carry(&mut self) {
+        self.bitor_assign(16)
+    }
+
+    pub fn reset_aux_carry(&mut self) {
+        self.bitor_assign(!16)
+    }
+
+    pub fn is_aux_carry(&self) -> bool {
+        self.shr(4u8).bitand(1) == 1
+    }
 }

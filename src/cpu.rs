@@ -113,8 +113,7 @@ macro_rules! generate_inc_dec_reg {
     ( $( ($func:ident, $reg:ident, $value:expr) ),* ) => {
         $(
             fn $func(&mut self) {
-                self.$reg += $value;
-                self.set_condition_bits_inc(self.$reg);
+                self.$reg = self.set_condition_bits(self.$reg.into(), $value) as u8;
             }
         )*
     };
@@ -140,13 +139,15 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn add(&mut self, reg: u8) {
-        let result = self.reg_a as u16 + reg as u16;
-        self.reg_a = self.set_condition_bits_add(result, result > u8::MAX.into());
+        let result = self.set_condition_bits(self.reg_a.into(), reg.into());
+        self.set_carry(result > u8::MAX.into());
+        self.reg_a = result as u8;
     }
 
     fn sub(&mut self, reg: u8) {
-        let result = self.reg_a as u16 + reg.wrapping_neg() as u16;
-        self.reg_a = self.set_condition_bits_add(result, result <= u8::MAX.into());
+        let result = self.set_condition_bits(self.reg_a.into(), reg.wrapping_neg().into());
+        self.set_carry(result <= u8::MAX.into());
+        self.reg_a = result as u8;
     }
 
     fn adc(&mut self, reg: u8) {
@@ -155,8 +156,9 @@ impl<'a> Cpu8080<'a> {
         } else {
             0
         };
-        let result = self.reg_a as u16 + reg as u16 + carry;
-        self.reg_a = self.set_condition_bits_add(result, result > u8::MAX.into());
+        let result = self.set_condition_bits(self.reg_a.into(), reg as u16 + carry);
+        self.set_carry(result > u8::MAX.into());
+        self.reg_a = result as u8;
     }
 
     fn sbb(&mut self, reg: u8) {
@@ -165,37 +167,54 @@ impl<'a> Cpu8080<'a> {
         } else {
             0
         };
-        let result = self.reg_a as u16 + reg.wrapping_neg() as u16 + carry.wrapping_neg() as u16;
-        self.reg_a = self.set_condition_bits_add(result, result <= u8::MAX.into());
+        let result = self.set_condition_bits(
+            self.reg_a.into(),
+            reg.wrapping_neg() as u16 + carry.wrapping_neg() as u16,
+        );
+        self.set_carry(result <= u8::MAX.into());
+        self.reg_a = result as u8;
     }
 
-    fn set_condition_bits_add(&mut self, result: u16, is_carry: bool) -> u8 {
+    fn set_condition_bits(&mut self, value1: u16, value2: u16) -> u16 {
+        // Z, S, P, AC
+        let result = value1 + value2;
         let lsb = result as u8;
-        self.set_condition_bits_inc(lsb);
+        if lsb == 0 {
+            self.conditon_codes.set_zero();
+        } else {
+            self.conditon_codes.reset_zero();
+        }
+        if lsb >= 0x80 {
+            self.conditon_codes.set_sign();
+        } else {
+            self.conditon_codes.reset_sign();
+        }
+        if lsb.count_ones() % 2 == 0 {
+            self.conditon_codes.set_parity();
+        } else {
+            self.conditon_codes.reset_parity();
+        }
+        let aux_carry = result & 0xf;
+        if aux_carry < (value1 & 0xf) && aux_carry < (value2 & 0xf) {
+            self.conditon_codes.set_aux_carry()
+        } else {
+            self.conditon_codes.reset_aux_carry()
+        }
+        result
+    }
+
+    fn set_carry(&mut self, is_carry: bool) {
         if is_carry {
             self.conditon_codes.set_carry();
         } else {
             self.conditon_codes.reset_carry();
         }
-        lsb
     }
 
-    fn set_condition_bits_inc(&mut self, result: u8) {
-        if result == 0 {
-            self.conditon_codes.set_zero();
-        } else {
-            self.conditon_codes.reset_zero();
-        }
-        if result >= 0x80 {
-            self.conditon_codes.set_sign();
-        } else {
-            self.conditon_codes.reset_sign();
-        }
-        if result.count_ones() % 2 == 0 {
-            self.conditon_codes.set_parity();
-        } else {
-            self.conditon_codes.reset_parity();
-        }
+    fn dad(&mut self, value: u16) {
+        let hl = construct_address((self.reg_l, self.reg_h)) as u32;
+        let hl = hl + value as u32;
+        self.set_carry(hl > u16::MAX.into());
     }
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
@@ -276,13 +295,13 @@ impl<'a> Cpu8080<'a> {
         (inr_h, reg_h, 1),
         (inr_l, reg_l, 1),
         (inr_a, reg_a, 1),
-        (dcr_b, reg_b, 1u8.wrapping_neg()),
-        (dcr_c, reg_c, 1u8.wrapping_neg()),
-        (dcr_d, reg_d, 1u8.wrapping_neg()),
-        (dcr_e, reg_e, 1u8.wrapping_neg()),
-        (dcr_h, reg_h, 1u8.wrapping_neg()),
-        (dcr_l, reg_l, 1u8.wrapping_neg()),
-        (drc_a, reg_a, 1u8.wrapping_neg())
+        (dcr_b, reg_b, 1u16.wrapping_neg()),
+        (dcr_c, reg_c, 1u16.wrapping_neg()),
+        (dcr_d, reg_d, 1u16.wrapping_neg()),
+        (dcr_e, reg_e, 1u16.wrapping_neg()),
+        (dcr_h, reg_h, 1u16.wrapping_neg()),
+        (dcr_l, reg_l, 1u16.wrapping_neg()),
+        (drc_a, reg_a, 1u16.wrapping_neg())
     ];
 
     fn inr_m(&mut self) -> Result<()> {
@@ -344,6 +363,7 @@ impl<'a> Cpu8080<'a> {
             0x04 => self.inr_b(),
             0x05 => self.dcr_b(),
             0x06 => self.reg_b = self.load_d8_operand()?,
+            0x09 => self.dad(construct_address((self.reg_c, self.reg_b))),
             0x0b => self.dcx_b(),
             0x0c => self.inr_c(),
             0x0d => self.dcr_c(),
@@ -357,6 +377,7 @@ impl<'a> Cpu8080<'a> {
             0x14 => self.inr_d(),
             0x15 => self.dcr_d(),
             0x16 => self.reg_d = self.load_d8_operand()?,
+            0x19 => self.dad(construct_address((self.reg_e, self.reg_d))),
             0x1b => self.dcx_d(),
             0x1c => self.inr_e(),
             0x1d => self.dcr_e(),
@@ -366,6 +387,7 @@ impl<'a> Cpu8080<'a> {
             0x24 => self.inr_h(),
             0x25 => self.dcr_h(),
             0x26 => self.reg_h = self.load_d8_operand()?,
+            0x29 => self.dad(construct_address((self.reg_l, self.reg_h))),
             0x2b => self.dcx_h(),
             0x2c => self.inr_l(),
             0x2d => self.dcr_l(),
@@ -378,6 +400,7 @@ impl<'a> Cpu8080<'a> {
                 let imm = self.load_d8_operand()?;
                 self.store_to_ram(construct_address((self.reg_l, self.reg_h)).into(), imm)?
             }
+            0x39 => self.dad(self.sp),
             0x3b => self.sp -= 1,
             0x3c => self.inr_a(),
             0x3d => self.drc_a(),
