@@ -97,11 +97,11 @@ macro_rules! generate_load_data_into_reg_pair {
     };
 }
 
-macro_rules! generate_increment_reg_pair {
-    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
+macro_rules! generate_inc_dec_reg_pair {
+    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident, $value:expr) ),* ) => {
         $(
             fn $func(&mut self) {
-                let big_endian_bytes = (construct_address((self.$reg_lo, self.$reg_hi)) + 1).to_be_bytes();
+                let big_endian_bytes = (construct_address((self.$reg_lo, self.$reg_hi)) + $value).to_be_bytes();
                 self.$reg_hi = big_endian_bytes[0];
                 self.$reg_lo = big_endian_bytes[1];
             }
@@ -109,34 +109,11 @@ macro_rules! generate_increment_reg_pair {
     };
 }
 
-macro_rules! generate_decrement_reg_pair {
-    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
+macro_rules! generate_inc_dec_reg {
+    ( $( ($func:ident, $reg:ident, $value:expr) ),* ) => {
         $(
             fn $func(&mut self) {
-                let big_endian_bytes = (construct_address((self.$reg_lo, self.$reg_hi)) - 1).to_be_bytes();
-                self.$reg_hi = big_endian_bytes[0];
-                self.$reg_lo = big_endian_bytes[1];
-            }
-        )*
-    };
-}
-
-macro_rules! generate_increment_reg {
-    ( $( ($func:ident, $reg:ident) ),* ) => {
-        $(
-            fn $func(&mut self) {
-                self.$reg += 1;
-                self.set_condition_bits_inc(self.$reg);
-            }
-        )*
-    };
-}
-
-macro_rules! generate_decrement_reg {
-    ( $( ($func:ident, $reg:ident) ),* ) => {
-        $(
-            fn $func(&mut self) {
-                self.$reg -= 1;
+                self.$reg += $value;
                 self.set_condition_bits_inc(self.$reg);
             }
         )*
@@ -282,36 +259,30 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
-    generate_increment_reg_pair![
-        (inx_b, reg_b, reg_c),
-        (inx_d, reg_d, reg_e),
-        (inx_h, reg_h, reg_l)
+    generate_inc_dec_reg_pair![
+        (inx_b, reg_b, reg_c, 1),
+        (inx_d, reg_d, reg_e, 1),
+        (inx_h, reg_h, reg_l, 1),
+        (dcx_b, reg_b, reg_c, 1u16.wrapping_neg()),
+        (dcx_d, reg_d, reg_e, 1u16.wrapping_neg()),
+        (dcx_h, reg_h, reg_l, 1u16.wrapping_neg())
     ];
 
-    generate_decrement_reg_pair![
-        (dcx_b, reg_b, reg_c),
-        (dcx_d, reg_d, reg_e),
-        (dcx_h, reg_h, reg_l)
-    ];
-
-    generate_increment_reg![
-        (inr_b, reg_b),
-        (inr_c, reg_c),
-        (inr_d, reg_d),
-        (inr_e, reg_e),
-        (inr_h, reg_h),
-        (inr_l, reg_l),
-        (inr_a, reg_a)
-    ];
-
-    generate_decrement_reg![
-        (dcr_b, reg_b),
-        (dcr_c, reg_c),
-        (dcr_d, reg_d),
-        (dcr_e, reg_e),
-        (dcr_h, reg_h),
-        (dcr_l, reg_l),
-        (drc_a, reg_a)
+    generate_inc_dec_reg![
+        (inr_b, reg_b, 1),
+        (inr_c, reg_c, 1),
+        (inr_d, reg_d, 1),
+        (inr_e, reg_e, 1),
+        (inr_h, reg_h, 1),
+        (inr_l, reg_l, 1),
+        (inr_a, reg_a, 1),
+        (dcr_b, reg_b, 1u8.wrapping_neg()),
+        (dcr_c, reg_c, 1u8.wrapping_neg()),
+        (dcr_d, reg_d, 1u8.wrapping_neg()),
+        (dcr_e, reg_e, 1u8.wrapping_neg()),
+        (dcr_h, reg_h, 1u8.wrapping_neg()),
+        (dcr_l, reg_l, 1u8.wrapping_neg()),
+        (drc_a, reg_a, 1u8.wrapping_neg())
     ];
 
     fn inr_m(&mut self) -> Result<()> {
