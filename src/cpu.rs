@@ -214,7 +214,35 @@ impl<'a> Cpu8080<'a> {
     fn dad(&mut self, value: u16) {
         let hl = construct_address((self.reg_l, self.reg_h)) as u32;
         let hl = hl + value as u32;
+        let be_bytes = (hl as u16).to_be_bytes();
+        (self.reg_l, self.reg_h) = (be_bytes[1], be_bytes[0]);
         self.set_carry(hl > u16::MAX.into());
+    }
+
+    fn rlc(&mut self) {
+        self.reg_a = self.reg_a.rotate_left(1);
+        let carry = self.reg_a & 0x1;
+        self.set_carry(carry == 1);
+    }
+
+    fn rrc(&mut self) {
+        let carry = self.reg_a & 0x1;
+        self.reg_a = self.reg_a.rotate_right(1);
+        self.set_carry(carry == 1);
+    }
+
+    fn ral(&mut self) {
+        let carry = self.reg_a >= 0x80;
+        self.reg_a <<= 1;
+        self.reg_a |= self.conditon_codes.is_carry_set() as u8;
+        self.set_carry(carry);
+    }
+
+    fn rar(&mut self) {
+        let carry = self.reg_a & 0x1;
+        self.reg_a >>= 1;
+        self.reg_a = ((self.conditon_codes.is_carry_set() as u8) << 7) | self.reg_a;
+        self.set_carry(carry == 1);
     }
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
@@ -363,11 +391,13 @@ impl<'a> Cpu8080<'a> {
             0x04 => self.inr_b(),
             0x05 => self.dcr_b(),
             0x06 => self.reg_b = self.load_d8_operand()?,
+            0x07 => self.rlc(),
             0x09 => self.dad(construct_address((self.reg_c, self.reg_b))),
             0x0b => self.dcx_b(),
             0x0c => self.inr_c(),
             0x0d => self.dcr_c(),
             0x0e => self.reg_c = self.load_d8_operand()?,
+            0x0f => self.rrc(),
             0x11 => self.load_data_into_reg_pair_d()?,
             0x12 => self.store_to_ram(
                 construct_address((self.reg_e, self.reg_d)).into(),
@@ -377,11 +407,13 @@ impl<'a> Cpu8080<'a> {
             0x14 => self.inr_d(),
             0x15 => self.dcr_d(),
             0x16 => self.reg_d = self.load_d8_operand()?,
+            0x17 => self.ral(),
             0x19 => self.dad(construct_address((self.reg_e, self.reg_d))),
             0x1b => self.dcx_d(),
             0x1c => self.inr_e(),
             0x1d => self.dcr_e(),
             0x1e => self.reg_e = self.load_d8_operand()?,
+            0x1f => self.rar(),
             0x21 => self.load_data_into_reg_pair_h()?,
             0x23 => self.inx_h(),
             0x24 => self.inr_h(),
@@ -608,4 +640,35 @@ impl<'a> Cpu8080<'a> {
 #[inline(always)]
 fn construct_address((low_addr, high_addr): (u8, u8)) -> u16 {
     (high_addr as u16) << 8 | (low_addr as u16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cpu_opcode_tests() {
+        let mut cpu = Cpu8080::new(&[0u8; 8192]);
+
+        // test RAL & RAR
+        cpu.reg_a = 0xb5;
+        cpu.conditon_codes.reset_carry();
+        cpu.ral();
+        assert!(cpu.conditon_codes.is_carry_set());
+        assert_eq!(cpu.reg_a, 0x6a);
+        cpu.rar();
+        assert!(!cpu.conditon_codes.is_carry_set());
+        assert_eq!(cpu.reg_a, 0xb5);
+
+        // test DAD
+        cpu.reg_b = 0x33;
+        cpu.reg_c = 0x9f;
+        cpu.reg_h = 0xa1;
+        cpu.reg_l = 0x7b;
+        cpu.conditon_codes.reset_carry();
+        cpu.dad(construct_address((cpu.reg_c, cpu.reg_b)));
+        assert_eq!(cpu.reg_h, 0xd5);
+        assert_eq!(cpu.reg_l, 0x1a);
+        assert!(!cpu.conditon_codes.is_carry_set());
+    }
 }
