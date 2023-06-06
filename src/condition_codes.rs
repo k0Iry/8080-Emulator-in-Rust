@@ -71,7 +71,7 @@ impl ConditionCodes {
     }
 
     pub fn reset_aux_carry(&mut self) {
-        self.bitor_assign(!16)
+        self.bitand_assign(!16)
     }
 
     pub fn is_aux_carry(&self) -> bool {

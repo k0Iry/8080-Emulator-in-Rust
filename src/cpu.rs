@@ -1,3 +1,9 @@
+use core::panic;
+use std::{
+    mem,
+    ops::{Deref, DerefMut},
+};
+
 use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result};
 
 const RAM_SIZE: usize = 0x2000;
@@ -113,7 +119,34 @@ macro_rules! generate_inc_dec_reg {
     ( $( ($func:ident, $reg:ident, $value:expr) ),* ) => {
         $(
             fn $func(&mut self) {
-                self.$reg = self.set_condition_bits(self.$reg.into(), $value) as u8;
+                self.$reg = self.set_condition_bits(self.$reg.into(), $value.into()) as u8;
+            }
+        )*
+    };
+}
+
+macro_rules! pop_to_reg_pair {
+    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
+        $(
+            fn $func(&mut self) -> Result<()> {
+                let addr_lo = self.load_byte_from_ram(self.sp.into())?;
+                let addr_hi = self.load_byte_from_ram((self.sp + 1).into())?;
+                (self.$reg_lo, self.$reg_hi) = (addr_lo, addr_hi);
+                self.sp += 2;
+                Ok(())
+            }
+        )*
+    };
+}
+
+macro_rules! push_to_reg_pair {
+    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
+        $(
+            fn $func(&mut self) -> Result<()> {
+                self.store_to_ram((self.sp - 1).into(), self.$reg_hi)?;
+                self.store_to_ram((self.sp - 2).into(), self.$reg_lo)?;
+                self.sp -= 2;
+                Ok(())
             }
         )*
     };
@@ -258,7 +291,11 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
-        Ok(*self.ram.get(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)?)
+        if addr >= ROM_SIZE {
+            Ok(*self.ram.get(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)?)
+        } else {
+            Ok(*self.rom.get(addr).ok_or(MemoryOutOfBounds)?)
+        }
     }
 
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
@@ -409,20 +446,20 @@ impl<'a> Cpu8080<'a> {
     ];
 
     generate_inc_dec_reg![
-        (inr_b, reg_b, 1),
-        (inr_c, reg_c, 1),
-        (inr_d, reg_d, 1),
-        (inr_e, reg_e, 1),
-        (inr_h, reg_h, 1),
-        (inr_l, reg_l, 1),
-        (inr_a, reg_a, 1),
-        (dcr_b, reg_b, 1u16.wrapping_neg()),
-        (dcr_c, reg_c, 1u16.wrapping_neg()),
-        (dcr_d, reg_d, 1u16.wrapping_neg()),
-        (dcr_e, reg_e, 1u16.wrapping_neg()),
-        (dcr_h, reg_h, 1u16.wrapping_neg()),
-        (dcr_l, reg_l, 1u16.wrapping_neg()),
-        (drc_a, reg_a, 1u16.wrapping_neg())
+        (inr_b, reg_b, 1u8),
+        (inr_c, reg_c, 1u8),
+        (inr_d, reg_d, 1u8),
+        (inr_e, reg_e, 1u8),
+        (inr_h, reg_h, 1u8),
+        (inr_l, reg_l, 1u8),
+        (inr_a, reg_a, 1u8),
+        (dcr_b, reg_b, 1u8.wrapping_neg()),
+        (dcr_c, reg_c, 1u8.wrapping_neg()),
+        (dcr_d, reg_d, 1u8.wrapping_neg()),
+        (dcr_e, reg_e, 1u8.wrapping_neg()),
+        (dcr_h, reg_h, 1u8.wrapping_neg()),
+        (dcr_l, reg_l, 1u8.wrapping_neg()),
+        (drc_a, reg_a, 1u8.wrapping_neg())
     ];
 
     fn inr_m(&mut self) -> Result<()> {
@@ -486,6 +523,10 @@ impl<'a> Cpu8080<'a> {
             0x06 => self.reg_b = self.load_d8_operand()?,
             0x07 => self.rlc(),
             0x09 => self.dad(construct_address((self.reg_c, self.reg_b))),
+            0x0a => {
+                self.reg_a =
+                    self.load_byte_from_ram(construct_address((self.reg_c, self.reg_b)).into())?
+            }
             0x0b => self.dcx_b(),
             0x0c => self.inr_c(),
             0x0d => self.dcr_c(),
@@ -502,22 +543,31 @@ impl<'a> Cpu8080<'a> {
             0x16 => self.reg_d = self.load_d8_operand()?,
             0x17 => self.ral(),
             0x19 => self.dad(construct_address((self.reg_e, self.reg_d))),
+            0x1a => {
+                self.reg_a =
+                    self.load_byte_from_ram(construct_address((self.reg_e, self.reg_d)).into())?
+            }
             0x1b => self.dcx_d(),
             0x1c => self.inr_e(),
             0x1d => self.dcr_e(),
             0x1e => self.reg_e = self.load_d8_operand()?,
             0x1f => self.rar(),
             0x21 => self.load_data_into_reg_pair_h()?,
+            0x22 => self.shld()?,
             0x23 => self.inx_h(),
             0x24 => self.inr_h(),
             0x25 => self.dcr_h(),
             0x26 => self.reg_h = self.load_d8_operand()?,
+            0x27 => (), // DAA not implemented yet
             0x29 => self.dad(construct_address((self.reg_l, self.reg_h))),
+            0x2a => self.lhld()?,
             0x2b => self.dcx_h(),
             0x2c => self.inr_l(),
             0x2d => self.dcr_l(),
             0x2e => self.reg_l = self.load_d8_operand()?,
+            0x2f => self.reg_a = !self.reg_a,
             0x31 => self.load_stack_pointer_from_operand()?,
+            0x32 => self.sta()?,
             0x33 => self.sp += 1,
             0x34 => self.inr_m()?,
             0x35 => self.dcr_m()?,
@@ -525,11 +575,14 @@ impl<'a> Cpu8080<'a> {
                 let imm = self.load_d8_operand()?;
                 self.store_to_ram(construct_address((self.reg_l, self.reg_h)).into(), imm)?
             }
+            0x37 => self.conditon_codes.set_carry(),
             0x39 => self.dad(self.sp),
+            0x3a => self.lda()?,
             0x3b => self.sp -= 1,
             0x3c => self.inr_a(),
             0x3d => self.drc_a(),
             0x3e => self.reg_a = self.load_d8_operand()?,
+            0x3f => self.set_carry(!self.conditon_codes.is_carry_set()),
             0x41 => self.reg_b = self.reg_c,
             0x42 => self.reg_b = self.reg_d,
             0x43 => self.reg_b = self.reg_e,
@@ -578,7 +631,7 @@ impl<'a> Cpu8080<'a> {
             0x73 => self.store_reg_e_to_ram()?,
             0x74 => self.store_reg_h_to_ram()?,
             0x75 => self.store_reg_l_to_ram()?,
-            // 0x76 =>
+            0x76 => std::process::exit(1), // HLT
             0x77 => self.store_reg_a_to_ram()?,
             0x78 => self.reg_a = self.reg_b,
             0x79 => self.reg_a = self.reg_c,
@@ -652,42 +705,64 @@ impl<'a> Cpu8080<'a> {
             0xbe => self.cmp_m()?,
             0xbf => self.cmp(self.reg_a),
             0xc0 => self.ret_on_zero(!self.conditon_codes.is_zero_set()),
+            0xc1 => self.pop_b()?,
             0xc2 => self.jump_on_zero(!self.conditon_codes.is_zero_set())?,
             0xc3 => self.jmp()?,
-            0xc8 => self.ret_on_zero(self.conditon_codes.is_zero_set()),
-            0xca => self.jump_on_zero(self.conditon_codes.is_zero_set())?,
             0xc4 => self.call_on_zero(!self.conditon_codes.is_zero_set())?,
+            0xc5 => self.push_b()?,
             0xc6 => self.adi()?,
+            0xc7 => self.rst(0)?,
+            0xc8 => self.ret_on_zero(self.conditon_codes.is_zero_set()),
             0xc9 => self.ret(),
+            0xca => self.jump_on_zero(self.conditon_codes.is_zero_set())?,
             0xcc => self.call_on_zero(self.conditon_codes.is_zero_set())?,
             0xcd => self.call()?,
             0xce => self.aci()?,
+            0xcf => self.rst(1)?,
             0xd0 => self.ret_on_carry(!self.conditon_codes.is_carry_set()),
+            0xd1 => self.pop_d()?,
             0xd2 => self.jump_on_carry(!self.conditon_codes.is_carry_set())?,
+            0xd3 => self.output()?,
             0xd4 => self.call_on_carry(!self.conditon_codes.is_carry_set())?,
+            0xd5 => self.push_d()?,
             0xd6 => self.sui()?,
+            0xd7 => self.rst(2)?,
             0xd8 => self.ret_on_carry(self.conditon_codes.is_carry_set()),
             0xda => self.jump_on_carry(self.conditon_codes.is_carry_set())?,
+            0xdb => self.input()?,
             0xdc => self.call_on_carry(self.conditon_codes.is_carry_set())?,
             0xde => self.sbi()?,
+            0xdf => self.rst(3)?,
             0xe0 => self.ret_on_parity(!self.conditon_codes.is_parity()),
+            0xe1 => self.pop_h()?,
             0xe2 => self.jump_on_parity(!self.conditon_codes.is_parity())?,
+            0xe3 => self.xthl(),
             0xe4 => self.call_on_parity(!self.conditon_codes.is_parity())?,
+            0xe5 => self.push_h()?,
             0xe6 => self.ani()?,
+            0xe7 => self.rst(4)?,
             0xe8 => self.ret_on_parity(self.conditon_codes.is_parity()),
             0xe9 => self.pc = construct_address((self.reg_l, self.reg_h)) - 1,
             0xea => self.jump_on_parity(self.conditon_codes.is_parity())?,
+            0xeb => self.xchg(),
             0xec => self.call_on_parity(self.conditon_codes.is_parity())?,
             0xee => self.xri()?,
+            0xef => self.rst(5)?,
             0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign()),
+            0xf1 => self.pop_psw()?,
             0xf2 => self.jump_on_sign(!self.conditon_codes.is_sign())?,
+            0xf3 => self.interrupt_enabled = 0,
             0xf4 => self.call_on_sign(!self.conditon_codes.is_sign())?,
+            0xf5 => self.push_psw()?,
             0xf6 => self.ori()?,
+            0xf7 => self.rst(6)?,
             0xf8 => self.ret_on_sign(self.conditon_codes.is_sign()),
+            0xf9 => self.sp = construct_address((self.reg_l, self.reg_h)),
             0xfa => self.jump_on_sign(self.conditon_codes.is_sign())?,
+            0xfb => self.interrupt_enabled = 1,
             0xfc => self.call_on_sign(self.conditon_codes.is_sign())?,
             0xfe => self.cpi()?,
-            _ => (),
+            0xff => self.rst(7)?,
         }
         self.pc += 1;
         Ok(())
@@ -706,14 +781,114 @@ impl<'a> Cpu8080<'a> {
         (call_on_sign, is_sign_set)
     ];
 
+    fn shld(&mut self) -> Result<()> {
+        let address = construct_address(self.load_d16_operand()?);
+        self.store_to_ram(address.into(), self.reg_l)?;
+        self.store_to_ram((address + 1).into(), self.reg_h)?;
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn lhld(&mut self) -> Result<()> {
+        let address = construct_address(self.load_d16_operand()?);
+        let lo = self.load_byte_from_ram(address.into())?;
+        let hi = self.load_byte_from_ram((address + 1).into())?;
+        (self.reg_l, self.reg_h) = (lo, hi);
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn xthl(&mut self) {
+        mem::swap(&mut self.ram[self.sp as usize - ROM_SIZE], &mut self.reg_l);
+        mem::swap(&mut self.ram[(self.sp + 1) as usize - ROM_SIZE], &mut self.reg_h);
+    }
+
+    fn xchg(&mut self) {
+        mem::swap(&mut self.reg_h, &mut self.reg_d);
+        mem::swap(&mut self.reg_l, &mut self.reg_e);
+    }
+
+    fn sta(&mut self) -> Result<()> {
+        let address = construct_address(self.load_d16_operand()?);
+        self.store_to_ram(address.into(), self.reg_a)?;
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn lda(&mut self) -> Result<()> {
+        let address = construct_address(self.load_d16_operand()?);
+        self.reg_a = self.load_byte_from_ram(address.into())?;
+        self.pc += 2;
+        Ok(())
+    }
+
+    pop_to_reg_pair![
+        (pop_b, reg_b, reg_c),
+        (pop_d, reg_d, reg_e),
+        (pop_h, reg_h, reg_l)
+    ];
+
+    fn pop_psw(&mut self) -> Result<()> {
+        let lo = self.load_byte_from_ram(self.sp.into())?;
+        let hi = self.load_byte_from_ram((self.sp + 1).into())?;
+        (*self.conditon_codes.deref_mut(), self.reg_a) = (lo, hi);
+        self.sp += 2;
+        Ok(())
+    }
+
+    push_to_reg_pair![
+        (push_b, reg_b, reg_c),
+        (push_d, reg_d, reg_e),
+        (push_h, reg_h, reg_l)
+    ];
+
+    fn push_psw(&mut self) -> Result<()> {
+        self.store_to_ram((self.sp - 1).into(), self.reg_a)?;
+        self.store_to_ram((self.sp - 2).into(), *self.conditon_codes.deref())?;
+        self.sp -= 2;
+        Ok(())
+    }
+
     fn call(&mut self) -> Result<()> {
         let pc_in_bytes = (self.pc + 2).to_be_bytes();
-        (
-            self.ram[self.sp as usize - 1 - ROM_SIZE],
-            self.ram[self.sp as usize - 2 - ROM_SIZE],
-        ) = (pc_in_bytes[0], pc_in_bytes[1]);
+        self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
+        self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
         self.sp -= 2;
         self.pc = construct_address(self.load_d16_operand()?) - 1;
+        println!(
+            "call into address: {:#06x}, sp = {:#06x}",
+            self.pc + 1,
+            self.sp
+        );
+        Ok(())
+    }
+
+    fn rst(&mut self, rst_no: u8) -> Result<()> {
+        match rst_no {
+            7 => {
+                let pc_in_bytes = (self.pc + 2).to_be_bytes();
+                self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
+                self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
+                self.sp -= 2;
+                self.pc = 0x38 - 1;
+                println!("rst into address: {:#06x}", self.pc + 1);
+            }
+            _ => panic!("unsupported"),
+        }
+        Ok(())
+    }
+
+    /// TODO...
+    fn output(&mut self) -> Result<()> {
+        let dev_no = self.load_d8_operand()?;
+        println!("accumulator {} sent to device {dev_no}", self.reg_a);
+        Ok(())
+    }
+
+    /// TODO...
+    fn input(&mut self) -> Result<()> {
+        let dev_no = self.load_d8_operand()?;
+        println!("Read from device {dev_no} and save to reg_a");
         Ok(())
     }
 
@@ -725,10 +900,15 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn ret(&mut self) {
-        let addr_lo = self.ram[self.sp as usize - ROM_SIZE];
-        let addr_hi = self.ram[self.sp as usize + 1 - ROM_SIZE];
+        let addr_lo = self.load_byte_from_ram(self.sp.into()).unwrap();
+        let addr_hi = self.load_byte_from_ram((self.sp + 1).into()).unwrap();
         self.pc = construct_address((addr_lo, addr_hi));
         self.sp += 2;
+        println!(
+            "Return to address: {:#06x}, sp = {:#06x}",
+            self.pc + 1,
+            self.sp
+        );
     }
 
     /// get operand parts in (lo, hi)
@@ -763,6 +943,7 @@ impl<'a> Cpu8080<'a> {
 
     fn jmp(&mut self) -> Result<()> {
         self.pc = construct_address(self.load_d16_operand()?) - 1;
+        println!("Jump to address: {:#06x}", self.pc + 1);
         Ok(())
     }
 }
