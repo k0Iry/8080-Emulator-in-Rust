@@ -179,21 +179,9 @@ impl<'a> Cpu8080<'a> {
         // Z, S, P, AC
         let result = value1 + value2;
         let lsb = result as u8;
-        if lsb == 0 {
-            self.conditon_codes.set_zero();
-        } else {
-            self.conditon_codes.reset_zero();
-        }
-        if lsb >= 0x80 {
-            self.conditon_codes.set_sign();
-        } else {
-            self.conditon_codes.reset_sign();
-        }
-        if lsb.count_ones() % 2 == 0 {
-            self.conditon_codes.set_parity();
-        } else {
-            self.conditon_codes.reset_parity();
-        }
+        self.set_zero(lsb == 0);
+        self.set_sign(lsb >= 0x80);
+        self.set_parity(lsb.count_ones() % 2 == 0);
         let aux_carry = result & 0xf;
         if aux_carry < (value1 & 0xf) && aux_carry < (value2 & 0xf) {
             self.conditon_codes.set_aux_carry()
@@ -201,6 +189,30 @@ impl<'a> Cpu8080<'a> {
             self.conditon_codes.reset_aux_carry()
         }
         result
+    }
+
+    fn set_zero(&mut self, is_zero: bool) {
+        if is_zero {
+            self.conditon_codes.set_zero()
+        } else {
+            self.conditon_codes.reset_zero()
+        }
+    }
+
+    fn set_parity(&mut self, is_parity: bool) {
+        if is_parity {
+            self.conditon_codes.set_parity()
+        } else {
+            self.conditon_codes.reset_parity()
+        }
+    }
+
+    fn set_sign(&mut self, is_sign: bool) {
+        if is_sign {
+            self.conditon_codes.set_sign()
+        } else {
+            self.conditon_codes.reset_sign()
+        }
     }
 
     fn set_carry(&mut self, is_carry: bool) {
@@ -241,7 +253,7 @@ impl<'a> Cpu8080<'a> {
     fn rar(&mut self) {
         let carry = self.reg_a & 0x1;
         self.reg_a >>= 1;
-        self.reg_a = ((self.conditon_codes.is_carry_set() as u8) << 7) | self.reg_a;
+        self.reg_a |= (self.conditon_codes.is_carry_set() as u8) << 7;
         self.set_carry(carry == 1);
     }
 
@@ -303,6 +315,27 @@ impl<'a> Cpu8080<'a> {
     fn sbi(&mut self) -> Result<()> {
         let imm = self.load_d8_operand()?;
         self.sbb(imm);
+        Ok(())
+    }
+
+    fn and(&mut self, value: u8) {
+        self.reg_a &= value;
+        self.set_carry(false); // always reset carry
+        self.set_zero(self.reg_a == 0);
+        self.set_sign(self.reg_a >= 0x80);
+        self.set_parity(self.reg_a.count_ones() % 2 == 0);
+    }
+
+    fn ani(&mut self) -> Result<()> {
+        let value = self.load_d8_operand()?;
+        self.and(value);
+        Ok(())
+    }
+
+    fn ana_m(&mut self) -> Result<()> {
+        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let value = self.load_byte_from_ram(mem_addr.into())?;
+        self.and(value);
         Ok(())
     }
 
@@ -526,6 +559,14 @@ impl<'a> Cpu8080<'a> {
             0x9d => self.sbb(self.reg_l),
             0x9e => self.sbb_m()?,
             0x9f => self.sbb(self.reg_a),
+            0xa0 => self.and(self.reg_b),
+            0xa1 => self.and(self.reg_c),
+            0xa2 => self.and(self.reg_d),
+            0xa3 => self.and(self.reg_e),
+            0xa4 => self.and(self.reg_h),
+            0xa5 => self.and(self.reg_l),
+            0xa6 => self.ana_m()?,
+            0xa7 => self.and(self.reg_a),
             0xc0 => self.ret_on_zero(!self.conditon_codes.is_zero_set()),
             0xc2 => self.jump_on_zero(!self.conditon_codes.is_zero_set())?,
             0xc3 => self.jmp()?,
@@ -548,7 +589,9 @@ impl<'a> Cpu8080<'a> {
             0xe0 => self.ret_on_parity(!self.conditon_codes.is_parity()),
             0xe2 => self.jump_on_parity(!self.conditon_codes.is_parity())?,
             0xe4 => self.call_on_parity(!self.conditon_codes.is_parity())?,
+            0xe6 => self.ani()?,
             0xe8 => self.ret_on_parity(self.conditon_codes.is_parity()),
+            0xe9 => self.pc = construct_address((self.reg_l, self.reg_h)) - 1,
             0xea => self.jump_on_parity(self.conditon_codes.is_parity())?,
             0xec => self.call_on_parity(self.conditon_codes.is_parity())?,
             0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign()),
