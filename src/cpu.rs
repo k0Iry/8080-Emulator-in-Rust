@@ -381,6 +381,24 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
+    fn cmp(&mut self, value: u8) {
+        let result = self.set_condition_bits(self.reg_a.into(), value.wrapping_neg().into());
+        self.set_carry(result <= u8::MAX.into());
+    }
+
+    fn cmp_m(&mut self) -> Result<()> {
+        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let value = self.load_byte_from_ram(mem_addr.into())?;
+        self.cmp(value);
+        Ok(())
+    }
+
+    fn cpi(&mut self) -> Result<()> {
+        let value = self.load_d8_operand()?;
+        self.cmp(value);
+        Ok(())
+    }
+
     generate_inc_dec_reg_pair![
         (inx_b, reg_b, reg_c, 1),
         (inx_d, reg_d, reg_e, 1),
@@ -625,6 +643,14 @@ impl<'a> Cpu8080<'a> {
             0xb5 => self.or(self.reg_l),
             0xb6 => self.ora_m()?,
             0xb7 => self.or(self.reg_a),
+            0xb8 => self.cmp(self.reg_b),
+            0xb9 => self.cmp(self.reg_c),
+            0xba => self.cmp(self.reg_d),
+            0xbb => self.cmp(self.reg_e),
+            0xbc => self.cmp(self.reg_h),
+            0xbd => self.cmp(self.reg_l),
+            0xbe => self.cmp_m()?,
+            0xbf => self.cmp(self.reg_a),
             0xc0 => self.ret_on_zero(!self.conditon_codes.is_zero_set()),
             0xc2 => self.jump_on_zero(!self.conditon_codes.is_zero_set())?,
             0xc3 => self.jmp()?,
@@ -660,6 +686,7 @@ impl<'a> Cpu8080<'a> {
             0xf8 => self.ret_on_sign(self.conditon_codes.is_sign()),
             0xfa => self.jump_on_sign(self.conditon_codes.is_sign())?,
             0xfc => self.call_on_sign(self.conditon_codes.is_sign())?,
+            0xfe => self.cpi()?,
             _ => (),
         }
         self.pc += 1;
