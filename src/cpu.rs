@@ -360,6 +360,27 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
+    fn or(&mut self, value: u8) {
+        self.reg_a |= value;
+        self.set_carry(false); // always reset carry
+        self.set_zero(self.reg_a == 0);
+        self.set_sign(self.reg_a >= 0x80);
+        self.set_parity(self.reg_a.count_ones() % 2 == 0);
+    }
+
+    fn ori(&mut self) -> Result<()> {
+        let value = self.load_d8_operand()?;
+        self.or(value);
+        Ok(())
+    }
+
+    fn ora_m(&mut self) -> Result<()> {
+        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let value = self.load_byte_from_ram(mem_addr.into())?;
+        self.or(value);
+        Ok(())
+    }
+
     generate_inc_dec_reg_pair![
         (inx_b, reg_b, reg_c, 1),
         (inx_d, reg_d, reg_e, 1),
@@ -596,6 +617,14 @@ impl<'a> Cpu8080<'a> {
             0xad => self.xor(self.reg_l),
             0xae => self.xra_m()?,
             0xaf => self.xor(self.reg_a),
+            0xb0 => self.or(self.reg_b),
+            0xb1 => self.or(self.reg_c),
+            0xb2 => self.or(self.reg_d),
+            0xb3 => self.or(self.reg_e),
+            0xb4 => self.or(self.reg_h),
+            0xb5 => self.or(self.reg_l),
+            0xb6 => self.ora_m()?,
+            0xb7 => self.or(self.reg_a),
             0xc0 => self.ret_on_zero(!self.conditon_codes.is_zero_set()),
             0xc2 => self.jump_on_zero(!self.conditon_codes.is_zero_set())?,
             0xc3 => self.jmp()?,
@@ -627,6 +656,7 @@ impl<'a> Cpu8080<'a> {
             0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign()),
             0xf2 => self.jump_on_sign(!self.conditon_codes.is_sign())?,
             0xf4 => self.call_on_sign(!self.conditon_codes.is_sign())?,
+            0xf6 => self.ori()?,
             0xf8 => self.ret_on_sign(self.conditon_codes.is_sign()),
             0xfa => self.jump_on_sign(self.conditon_codes.is_sign())?,
             0xfc => self.call_on_sign(self.conditon_codes.is_sign())?,
