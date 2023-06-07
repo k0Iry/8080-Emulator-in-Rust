@@ -82,10 +82,11 @@ macro_rules! generate_call_on_condition {
 macro_rules! generate_return_on_condition {
     ( $( ($ret:ident, $condition:ident) ),* ) => {
         $(
-            fn $ret(&mut self, $condition: bool) {
+            fn $ret(&mut self, $condition: bool) -> Result<()> {
                 if $condition {
-                    self.ret();
+                    self.ret()?;
                 }
+                Ok(())
             }
         )*
     };
@@ -704,7 +705,7 @@ impl<'a> Cpu8080<'a> {
             0xbd => self.cmp(self.reg_l),
             0xbe => self.cmp_m()?,
             0xbf => self.cmp(self.reg_a),
-            0xc0 => self.ret_on_zero(!self.conditon_codes.is_zero_set()),
+            0xc0 => self.ret_on_zero(!self.conditon_codes.is_zero_set())?,
             0xc1 => self.pop_b()?,
             0xc2 => self.jump_on_zero(!self.conditon_codes.is_zero_set())?,
             0xc3 => self.jmp()?,
@@ -712,14 +713,14 @@ impl<'a> Cpu8080<'a> {
             0xc5 => self.push_b()?,
             0xc6 => self.adi()?,
             0xc7 => self.rst(0)?,
-            0xc8 => self.ret_on_zero(self.conditon_codes.is_zero_set()),
-            0xc9 => self.ret(),
+            0xc8 => self.ret_on_zero(self.conditon_codes.is_zero_set())?,
+            0xc9 => self.ret()?,
             0xca => self.jump_on_zero(self.conditon_codes.is_zero_set())?,
             0xcc => self.call_on_zero(self.conditon_codes.is_zero_set())?,
             0xcd => self.call()?,
             0xce => self.aci()?,
             0xcf => self.rst(1)?,
-            0xd0 => self.ret_on_carry(!self.conditon_codes.is_carry_set()),
+            0xd0 => self.ret_on_carry(!self.conditon_codes.is_carry_set())?,
             0xd1 => self.pop_d()?,
             0xd2 => self.jump_on_carry(!self.conditon_codes.is_carry_set())?,
             0xd3 => self.output()?,
@@ -727,13 +728,13 @@ impl<'a> Cpu8080<'a> {
             0xd5 => self.push_d()?,
             0xd6 => self.sui()?,
             0xd7 => self.rst(2)?,
-            0xd8 => self.ret_on_carry(self.conditon_codes.is_carry_set()),
+            0xd8 => self.ret_on_carry(self.conditon_codes.is_carry_set())?,
             0xda => self.jump_on_carry(self.conditon_codes.is_carry_set())?,
             0xdb => self.input()?,
             0xdc => self.call_on_carry(self.conditon_codes.is_carry_set())?,
             0xde => self.sbi()?,
             0xdf => self.rst(3)?,
-            0xe0 => self.ret_on_parity(!self.conditon_codes.is_parity()),
+            0xe0 => self.ret_on_parity(!self.conditon_codes.is_parity())?,
             0xe1 => self.pop_h()?,
             0xe2 => self.jump_on_parity(!self.conditon_codes.is_parity())?,
             0xe3 => self.xthl(),
@@ -741,14 +742,14 @@ impl<'a> Cpu8080<'a> {
             0xe5 => self.push_h()?,
             0xe6 => self.ani()?,
             0xe7 => self.rst(4)?,
-            0xe8 => self.ret_on_parity(self.conditon_codes.is_parity()),
+            0xe8 => self.ret_on_parity(self.conditon_codes.is_parity())?,
             0xe9 => self.pc = construct_address((self.reg_l, self.reg_h)) - 1,
             0xea => self.jump_on_parity(self.conditon_codes.is_parity())?,
             0xeb => self.xchg(),
             0xec => self.call_on_parity(self.conditon_codes.is_parity())?,
             0xee => self.xri()?,
             0xef => self.rst(5)?,
-            0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign()),
+            0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign())?,
             0xf1 => self.pop_psw()?,
             0xf2 => self.jump_on_sign(!self.conditon_codes.is_sign())?,
             0xf3 => self.interrupt_enabled = 0,
@@ -756,7 +757,7 @@ impl<'a> Cpu8080<'a> {
             0xf5 => self.push_psw()?,
             0xf6 => self.ori()?,
             0xf7 => self.rst(6)?,
-            0xf8 => self.ret_on_sign(self.conditon_codes.is_sign()),
+            0xf8 => self.ret_on_sign(self.conditon_codes.is_sign())?,
             0xf9 => self.sp = construct_address((self.reg_l, self.reg_h)),
             0xfa => self.jump_on_sign(self.conditon_codes.is_sign())?,
             0xfb => self.interrupt_enabled = 1,
@@ -899,9 +900,9 @@ impl<'a> Cpu8080<'a> {
         (ret_on_sign, is_sign_set)
     ];
 
-    fn ret(&mut self) {
-        let addr_lo = self.load_byte_from_ram(self.sp.into()).unwrap();
-        let addr_hi = self.load_byte_from_ram((self.sp + 1).into()).unwrap();
+    fn ret(&mut self) -> Result<()> {
+        let addr_lo = self.load_byte_from_ram(self.sp.into())?;
+        let addr_hi = self.load_byte_from_ram((self.sp + 1).into())?;
         self.pc = construct_address((addr_lo, addr_hi));
         self.sp += 2;
         println!(
@@ -909,6 +910,7 @@ impl<'a> Cpu8080<'a> {
             self.pc + 1,
             self.sp
         );
+        Ok(())
     }
 
     /// get operand parts in (lo, hi)
