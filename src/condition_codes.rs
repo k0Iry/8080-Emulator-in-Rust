@@ -1,4 +1,7 @@
-use std::ops::{BitAnd, BitAndAssign, BitOrAssign, Deref, DerefMut, Shr};
+use std::{
+    fmt::Display,
+    ops::{BitAnd, BitAndAssign, BitOrAssign, Deref, DerefMut, Shr},
+};
 
 #[repr(transparent)]
 #[derive(Default, Debug)]
@@ -17,6 +20,22 @@ impl DerefMut for ConditionCodes {
     }
 }
 
+impl Display for ConditionCodes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "AC = {}, P = {}, Z = {}, S = {}, C = {}",
+            self.shr(4u8).bitand(1),
+            self.shr(3u8).bitand(1),
+            self.shr(2u8).bitand(1),
+            self.shr(1u8).bitand(1),
+            self.bitand(1)
+        )
+    }
+}
+
+/// 0---0---0---0---0---0---0---0
+/// N/A N/A N/A AC  P  Z   S   C
 impl ConditionCodes {
     pub fn set_carry(&mut self) {
         self.bitor_assign(1)

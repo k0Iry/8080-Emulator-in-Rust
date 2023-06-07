@@ -47,9 +47,13 @@ fn main() -> Result<()> {
         .collect::<std::result::Result<Vec<_>, std::io::Error>>()?;
 
     for file in files {
+        if file.file_name().unwrap() == "invaders" {
+            continue;
+        }
+        println!("executing {:?}....", file.file_name().unwrap());
         let bytes = BufReader::new(File::open(file)?).bytes();
         let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
-        let rom: &[u8; ROM_SIZE] = &rom.try_into().map_err(|_| RomReadFailure)?;
+        let rom: &mut [u8; ROM_SIZE] = &mut rom.try_into().map_err(|_| RomReadFailure)?;
         let mut cpu = Cpu8080::new(rom);
         cpu.run()?
     }

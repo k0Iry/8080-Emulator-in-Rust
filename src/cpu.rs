@@ -7,13 +7,13 @@ use std::{
 use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result};
 
 const RAM_SIZE: usize = 0x2000;
-pub const ROM_SIZE: usize = 0x2000;
+pub const ROM_SIZE: usize = 0x06b1;
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct Cpu8080<'a> {
     ram: [u8; RAM_SIZE],
-    rom: &'a [u8; ROM_SIZE],
+    rom: &'a mut [u8; ROM_SIZE],
     sp: u16,
     pc: u16,
     reg_a: u8,
@@ -108,9 +108,11 @@ macro_rules! generate_inc_dec_reg_pair {
     ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident, $value:expr) ),* ) => {
         $(
             fn $func(&mut self) {
-                let big_endian_bytes = (construct_address((self.$reg_lo, self.$reg_hi)) + $value).to_be_bytes();
-                self.$reg_hi = big_endian_bytes[0];
-                self.$reg_lo = big_endian_bytes[1];
+                let pair_value = construct_address((self.$reg_lo, self.$reg_hi)) as u32;
+                let value = $value as u32;
+                let big_endian_bytes = (pair_value + value).to_be_bytes();
+                self.$reg_hi = big_endian_bytes[2];
+                self.$reg_lo = big_endian_bytes[3];
             }
         )*
     };
@@ -154,7 +156,7 @@ macro_rules! push_to_reg_pair {
 }
 
 impl<'a> Cpu8080<'a> {
-    pub fn new(rom: &'a [u8; ROM_SIZE]) -> Self {
+    pub fn new(rom: &'a mut [u8; ROM_SIZE]) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -180,7 +182,7 @@ impl<'a> Cpu8080<'a> {
 
     fn sub(&mut self, reg: u8) {
         let result = self.set_condition_bits(self.reg_a.into(), reg.wrapping_neg().into());
-        self.set_carry(result <= u8::MAX.into());
+        self.set_carry(self.reg_a < reg);
         self.reg_a = result as u8;
     }
 
@@ -205,7 +207,7 @@ impl<'a> Cpu8080<'a> {
             self.reg_a.into(),
             reg.wrapping_neg() as u16 + carry.wrapping_neg() as u16,
         );
-        self.set_carry(result <= u8::MAX.into());
+        self.set_carry(self.reg_a < reg);
         self.reg_a = result as u8;
     }
 
@@ -293,14 +295,24 @@ impl<'a> Cpu8080<'a> {
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
         if addr >= ROM_SIZE {
-            Ok(*self.ram.get(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)?)
+            Ok(*self
+                .ram
+                .get(addr + 0x100 - ROM_SIZE)
+                .ok_or(MemoryOutOfBounds)?)
         } else {
             Ok(*self.rom.get(addr).ok_or(MemoryOutOfBounds)?)
         }
     }
 
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
-        *self.ram.get_mut(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)? = value;
+        if addr >= ROM_SIZE {
+            *self
+                .ram
+                .get_mut(addr + 0x100 - ROM_SIZE)
+                .ok_or(MemoryOutOfBounds)? = value;
+        } else {
+            *self.rom.get_mut(addr).ok_or(MemoryOutOfBounds)? = value;
+        }
         Ok(())
     }
 
@@ -403,6 +415,7 @@ impl<'a> Cpu8080<'a> {
         self.set_carry(false); // always reset carry
         self.set_zero(self.reg_a == 0);
         self.set_sign(self.reg_a >= 0x80);
+        self.conditon_codes.reset_aux_carry();
         self.set_parity(self.reg_a.count_ones() % 2 == 0);
     }
 
@@ -420,8 +433,8 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn cmp(&mut self, value: u8) {
-        let result = self.set_condition_bits(self.reg_a.into(), value.wrapping_neg().into());
-        self.set_carry(result <= u8::MAX.into());
+        let _ = self.set_condition_bits(self.reg_a.into(), value.wrapping_neg().into());
+        self.set_carry(self.reg_a < value);
     }
 
     fn cmp_m(&mut self) -> Result<()> {
@@ -559,7 +572,7 @@ impl<'a> Cpu8080<'a> {
             0x24 => self.inr_h(),
             0x25 => self.dcr_h(),
             0x26 => self.reg_h = self.load_d8_operand()?,
-            0x27 => (), // DAA not implemented yet
+            0x27 => self.daa(),
             0x29 => self.dad(construct_address((self.reg_l, self.reg_h))),
             0x2a => self.lhld()?,
             0x2b => self.dcx_h(),
@@ -800,8 +813,16 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn xthl(&mut self) {
-        mem::swap(&mut self.ram[self.sp as usize - ROM_SIZE], &mut self.reg_l);
-        mem::swap(&mut self.ram[(self.sp + 1) as usize - ROM_SIZE], &mut self.reg_h);
+        if self.sp < ROM_SIZE as u16 {
+            mem::swap(&mut self.rom[self.sp as usize], &mut self.reg_l);
+            mem::swap(&mut self.rom[(self.sp + 1) as usize], &mut self.reg_h);
+        } else {
+            mem::swap(&mut self.ram[self.sp as usize - ROM_SIZE], &mut self.reg_l);
+            mem::swap(
+                &mut self.ram[(self.sp + 1) as usize - ROM_SIZE],
+                &mut self.reg_h,
+            );
+        }
     }
 
     fn xchg(&mut self) {
@@ -855,12 +876,44 @@ impl<'a> Cpu8080<'a> {
         self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
         self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
         self.sp -= 2;
+        let old_pc = self.pc;
         self.pc = construct_address(self.load_d16_operand()?) - 1;
+        self.call_bdos(self.pc + 1)?;
         println!(
-            "call into address: {:#06x}, sp = {:#06x}",
+            "call into address: {:#06x} from {:#06x}, sp = {:#06x}",
             self.pc + 1,
+            old_pc,
             self.sp
         );
+        Ok(())
+    }
+
+    fn call_bdos(&self, pc: u16) -> Result<()> {
+        if pc == 0x5 {
+            let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
+            println!("msg addr: {:#06x}", msg_addr);
+            let msg: Vec<u8> = self
+                .rom
+                .iter()
+                .skip(msg_addr)
+                .take_while(|&&c| c as char != '$')
+                .map(|c| c.to_owned())
+                .collect();
+            println!("{}", String::from_utf8_lossy(&msg));
+            std::process::exit(0)
+        } else if pc == 0 {
+            let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
+            println!("msg addr: {:#06x}", msg_addr);
+            let msg: Vec<u8> = self
+                .rom
+                .iter()
+                .skip(msg_addr)
+                .take_while(|&&c| c as char == '$')
+                .map(|c| c.to_owned())
+                .collect();
+            println!("{}", String::from_utf8_lossy(&msg));
+            std::process::exit(1)
+        }
         Ok(())
     }
 
@@ -891,6 +944,28 @@ impl<'a> Cpu8080<'a> {
         let dev_no = self.load_d8_operand()?;
         println!("Read from device {dev_no} and save to reg_a");
         Ok(())
+    }
+
+    fn daa(&mut self) {
+        if (self.reg_a & 0xf) > 0x9 || self.conditon_codes.is_aux_carry() {
+            let aux_carry = self.reg_a as u16 + 6;
+            if (aux_carry & 0xf) < 0x6 {
+                self.conditon_codes.set_aux_carry()
+            } else {
+                self.conditon_codes.reset_aux_carry()
+            }
+            self.reg_a = aux_carry as u8;
+        }
+        if (self.reg_a >> 4) > 0x9 || self.conditon_codes.is_carry_set() {
+            let result = self.reg_a as u16 + (6u8 << 4) as u16;
+            if result > u8::MAX.into() {
+                self.conditon_codes.set_carry()
+            }
+            self.reg_a = result as u8;
+        }
+        self.set_zero(self.reg_a == 0);
+        self.set_sign(self.reg_a >= 0x80);
+        self.set_parity(self.reg_a.count_ones() % 2 == 0);
     }
 
     generate_return_on_condition![
@@ -944,8 +1019,13 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn jmp(&mut self) -> Result<()> {
+        let old_pc = self.pc;
         self.pc = construct_address(self.load_d16_operand()?) - 1;
-        println!("Jump to address: {:#06x}", self.pc + 1);
+        println!("Jump from {:#06x} to address: {:#06x}", old_pc, self.pc + 1);
+        println!(
+            "Accumulator = {:#06x} condition_code: {}",
+            self.reg_a, self.conditon_codes
+        );
         Ok(())
     }
 }
@@ -961,7 +1041,8 @@ mod tests {
 
     #[test]
     fn cpu_opcode_tests() {
-        let mut cpu = Cpu8080::new(&[0u8; 8192]);
+        let rom = &mut [0u8; ROM_SIZE];
+        let mut cpu = Cpu8080::new(rom);
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;
@@ -983,5 +1064,14 @@ mod tests {
         assert_eq!(cpu.reg_h, 0xd5);
         assert_eq!(cpu.reg_l, 0x1a);
         assert!(!cpu.conditon_codes.is_carry_set());
+
+        // // test DAA
+        cpu.reg_a = 0x88;
+        cpu.add(cpu.reg_a);
+        assert!(cpu.conditon_codes.is_carry_set());
+        assert!(cpu.conditon_codes.is_aux_carry());
+        assert_eq!(0x10, cpu.reg_a);
+        cpu.daa();
+        assert_eq!(0x76, cpu.reg_a);
     }
 }
