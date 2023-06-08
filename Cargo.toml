@@ -14,6 +14,10 @@ doctest = false
 name = "cpudiag"
 test = false
 doctest = false
+required-features = ["bdos"]
+
+[features]
+bdos = []
 
 [lib]
 doctest = false

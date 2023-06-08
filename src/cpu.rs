@@ -871,18 +871,22 @@ impl Cpu8080 {
         self.sp -= 2;
         let old_pc = self.pc;
         self.pc = construct_address(self.load_d16_operand()?) - 1;
-        self.call_bdos(self.pc + 1)?;
         println!(
             "call into address: {:#06x} from {:#06x}, sp = {:#06x}",
             self.pc + 1,
             old_pc,
             self.sp
         );
+
+        #[cfg(feature = "bdos")]
+        self.call_bdos(self.pc + 1)?;
+
         Ok(())
     }
 
+    #[cfg(feature = "bdos")]
     fn call_bdos(&self, pc: u16) -> Result<()> {
-        if pc == 0x5 {
+        if pc == 0x5 || pc == 0 {
             let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
             println!("msg addr: {:#06x}", msg_addr);
             let msg: Vec<u8> = self
@@ -894,18 +898,6 @@ impl Cpu8080 {
                 .collect();
             println!("{}", String::from_utf8_lossy(&msg));
             std::process::exit(0)
-        } else if pc == 0 {
-            let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
-            println!("msg addr: {:#06x}", msg_addr);
-            let msg: Vec<u8> = self
-                .rom
-                .iter()
-                .skip(msg_addr)
-                .take_while(|&&c| c as char != '$')
-                .map(|c| c.to_owned())
-                .collect();
-            println!("{}", String::from_utf8_lossy(&msg));
-            std::process::exit(1)
         }
         Ok(())
     }
