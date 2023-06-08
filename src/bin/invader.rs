@@ -40,22 +40,13 @@ use emulator::{Cpu8080, Result, RomReadFailure, ROM_SIZE};
 /// 6. OR, XOR
 
 fn main() -> Result<()> {
-    let files_dir = std::env::current_dir()?.join("invaders");
+    let invader = std::env::current_dir()?.join("roms/invaders");
 
-    let files = std::fs::read_dir(files_dir)?
-        .map(|res| res.map(|entry| entry.path()))
-        .collect::<std::result::Result<Vec<_>, std::io::Error>>()?;
-
-    for file in files {
-        if file.file_name().unwrap() == "invaders" {
-            continue;
-        }
-        println!("executing {:?}....", file.file_name().unwrap());
-        let bytes = BufReader::new(File::open(file)?).bytes();
-        let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
-        let rom: &mut [u8; ROM_SIZE] = &mut rom.try_into().map_err(|_| RomReadFailure)?;
-        let mut cpu = Cpu8080::new(rom);
-        cpu.run()?
-    }
+    println!("executing {:?}....", invader);
+    let bytes = BufReader::new(File::open(invader)?).bytes();
+    let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
+    let rom: &mut [u8; ROM_SIZE] = &mut rom.try_into().map_err(|_| RomReadFailure)?;
+    let mut cpu = Cpu8080::new(rom);
+    cpu.run()?;
     Ok(())
 }
