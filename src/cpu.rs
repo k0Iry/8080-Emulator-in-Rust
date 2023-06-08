@@ -13,7 +13,7 @@ pub const ROM_SIZE: usize = 0x06aa;
 #[repr(C)]
 pub struct Cpu8080<'a> {
     ram: [u8; RAM_SIZE],
-    rom: &'a mut [u8; ROM_SIZE],
+    rom: &'a [u8; ROM_SIZE],
     sp: u16,
     pc: u16,
     reg_a: u8,
@@ -156,7 +156,7 @@ macro_rules! push_to_reg_pair {
 }
 
 impl<'a> Cpu8080<'a> {
-    pub fn new(rom: &'a mut [u8; ROM_SIZE]) -> Self {
+    pub fn new(rom: &'a [u8; ROM_SIZE]) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
