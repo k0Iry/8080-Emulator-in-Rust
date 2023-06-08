@@ -7,7 +7,7 @@ use std::{
 use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result};
 
 const RAM_SIZE: usize = 0x2000;
-pub const ROM_SIZE: usize = 0x06b1;
+pub const ROM_SIZE: usize = 0x06aa;
 
 #[derive(Debug)]
 #[repr(C)]
@@ -295,24 +295,14 @@ impl<'a> Cpu8080<'a> {
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
         if addr >= ROM_SIZE {
-            Ok(*self
-                .ram
-                .get(addr - ROM_SIZE)
-                .ok_or(MemoryOutOfBounds)?)
+            Ok(*self.ram.get(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)?)
         } else {
             Ok(*self.rom.get(addr).ok_or(MemoryOutOfBounds)?)
         }
     }
 
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
-        if addr >= ROM_SIZE {
-            *self
-                .ram
-                .get_mut(addr - ROM_SIZE)
-                .ok_or(MemoryOutOfBounds)? = value;
-        } else {
-            *self.rom.get_mut(addr).ok_or(MemoryOutOfBounds)? = value;
-        }
+        *self.ram.get_mut(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)? = value;
         Ok(())
     }
 
@@ -813,16 +803,11 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn xthl(&mut self) {
-        if self.sp < ROM_SIZE as u16 {
-            mem::swap(&mut self.rom[self.sp as usize], &mut self.reg_l);
-            mem::swap(&mut self.rom[(self.sp + 1) as usize], &mut self.reg_h);
-        } else {
-            mem::swap(&mut self.ram[self.sp as usize - ROM_SIZE], &mut self.reg_l);
-            mem::swap(
-                &mut self.ram[(self.sp + 1) as usize - ROM_SIZE],
-                &mut self.reg_h,
-            );
-        }
+        mem::swap(&mut self.ram[self.sp as usize - ROM_SIZE], &mut self.reg_l);
+        mem::swap(
+            &mut self.ram[(self.sp + 1) as usize - ROM_SIZE],
+            &mut self.reg_h,
+        );
     }
 
     fn xchg(&mut self) {
