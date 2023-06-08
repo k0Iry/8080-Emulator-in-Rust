@@ -297,7 +297,7 @@ impl<'a> Cpu8080<'a> {
         if addr >= ROM_SIZE {
             Ok(*self
                 .ram
-                .get(addr + 0x100 - ROM_SIZE)
+                .get(addr - ROM_SIZE)
                 .ok_or(MemoryOutOfBounds)?)
         } else {
             Ok(*self.rom.get(addr).ok_or(MemoryOutOfBounds)?)
@@ -308,7 +308,7 @@ impl<'a> Cpu8080<'a> {
         if addr >= ROM_SIZE {
             *self
                 .ram
-                .get_mut(addr + 0x100 - ROM_SIZE)
+                .get_mut(addr - ROM_SIZE)
                 .ok_or(MemoryOutOfBounds)? = value;
         } else {
             *self.rom.get_mut(addr).ok_or(MemoryOutOfBounds)? = value;
@@ -908,7 +908,7 @@ impl<'a> Cpu8080<'a> {
                 .rom
                 .iter()
                 .skip(msg_addr)
-                .take_while(|&&c| c as char == '$')
+                .take_while(|&&c| c as char != '$')
                 .map(|c| c.to_owned())
                 .collect();
             println!("{}", String::from_utf8_lossy(&msg));
