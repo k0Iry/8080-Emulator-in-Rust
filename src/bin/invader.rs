@@ -3,7 +3,7 @@ use std::{
     io::{BufReader, Read},
 };
 
-use emulator::{Cpu8080, Result, RomReadFailure, ROM_SIZE, InvalidFile};
+use emulator::{Cpu8080, InvalidFile, Result};
 
 /// Brief information of registers and instructions
 /// The 8080 provides the programmer with an 8-bit ac- cumulator and 6 additional 8-bit "scratchpad" registers.
@@ -42,10 +42,12 @@ use emulator::{Cpu8080, Result, RomReadFailure, ROM_SIZE, InvalidFile};
 fn main() -> Result<()> {
     let invader = std::env::current_dir()?.join("roms/invaders");
 
-    println!("executing {:?}....", invader.file_name().ok_or(InvalidFile)?);
+    println!(
+        "executing {:?}....",
+        invader.file_name().ok_or(InvalidFile)?
+    );
     let bytes = BufReader::new(File::open(invader)?).bytes();
     let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
-    let rom: &[u8; ROM_SIZE] = &rom.try_into().map_err(|_| RomReadFailure)?;
     let mut cpu = Cpu8080::new(rom);
     cpu.run()?;
     Ok(())

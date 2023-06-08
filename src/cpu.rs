@@ -7,13 +7,12 @@ use std::{
 use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result};
 
 const RAM_SIZE: usize = 0x2000;
-pub const ROM_SIZE: usize = 0x06aa;
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct Cpu8080<'a> {
+pub struct Cpu8080 {
     ram: [u8; RAM_SIZE],
-    rom: &'a [u8; ROM_SIZE],
+    rom: Vec<u8>,
     sp: u16,
     pc: u16,
     reg_a: u8,
@@ -24,7 +23,7 @@ pub struct Cpu8080<'a> {
     reg_h: u8,
     reg_l: u8,
     conditon_codes: ConditionCodes,
-    interrupt_enabled: u8,
+    interrupt_enabled: bool,
 }
 
 macro_rules! generate_move_from_mem {
@@ -155,8 +154,8 @@ macro_rules! push_to_reg_pair {
     };
 }
 
-impl<'a> Cpu8080<'a> {
-    pub fn new(rom: &'a [u8; ROM_SIZE]) -> Self {
+impl Cpu8080 {
+    pub fn new(rom: Vec<u8>) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -170,7 +169,7 @@ impl<'a> Cpu8080<'a> {
             rom,
             ram: [0; RAM_SIZE],
             conditon_codes: ConditionCodes::default(),
-            interrupt_enabled: 0,
+            interrupt_enabled: false,
         }
     }
 
@@ -294,15 +293,21 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
-        if addr >= ROM_SIZE {
-            Ok(*self.ram.get(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)?)
+        if addr >= self.rom.len() {
+            Ok(*self
+                .ram
+                .get(addr - self.rom.len())
+                .ok_or(MemoryOutOfBounds)?)
         } else {
             Ok(*self.rom.get(addr).ok_or(MemoryOutOfBounds)?)
         }
     }
 
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
-        *self.ram.get_mut(addr - ROM_SIZE).ok_or(MemoryOutOfBounds)? = value;
+        *self
+            .ram
+            .get_mut(addr - self.rom.len())
+            .ok_or(MemoryOutOfBounds)? = value;
         Ok(())
     }
 
@@ -505,7 +510,7 @@ impl<'a> Cpu8080<'a> {
     ];
 
     pub fn run(&mut self) -> Result<()> {
-        while self.pc < ROM_SIZE as u16 {
+        while self.pc < self.rom.len() as u16 {
             self.execute()?
         }
         Ok(())
@@ -755,7 +760,7 @@ impl<'a> Cpu8080<'a> {
             0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign())?,
             0xf1 => self.pop_psw()?,
             0xf2 => self.jump_on_sign(!self.conditon_codes.is_sign())?,
-            0xf3 => self.interrupt_enabled = 0,
+            0xf3 => self.interrupt_enabled = false,
             0xf4 => self.call_on_sign(!self.conditon_codes.is_sign())?,
             0xf5 => self.push_psw()?,
             0xf6 => self.ori()?,
@@ -763,7 +768,7 @@ impl<'a> Cpu8080<'a> {
             0xf8 => self.ret_on_sign(self.conditon_codes.is_sign())?,
             0xf9 => self.sp = construct_address((self.reg_l, self.reg_h)),
             0xfa => self.jump_on_sign(self.conditon_codes.is_sign())?,
-            0xfb => self.interrupt_enabled = 1,
+            0xfb => self.interrupt_enabled = true,
             0xfc => self.call_on_sign(self.conditon_codes.is_sign())?,
             0xfe => self.cpi()?,
             0xff => self.rst(7)?,
@@ -803,9 +808,12 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn xthl(&mut self) {
-        mem::swap(&mut self.ram[self.sp as usize - ROM_SIZE], &mut self.reg_l);
         mem::swap(
-            &mut self.ram[(self.sp + 1) as usize - ROM_SIZE],
+            &mut self.ram[self.sp as usize - self.rom.len()],
+            &mut self.reg_l,
+        );
+        mem::swap(
+            &mut self.ram[(self.sp + 1) as usize - self.rom.len()],
             &mut self.reg_h,
         );
     }
@@ -1026,7 +1034,7 @@ mod tests {
 
     #[test]
     fn cpu_opcode_tests() {
-        let rom = &mut [0u8; ROM_SIZE];
+        let rom = &mut [0u8; self.rom.len()];
         let mut cpu = Cpu8080::new(rom);
 
         // test RAL & RAR
