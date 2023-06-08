@@ -34,66 +34,60 @@ impl Display for ConditionCodes {
     }
 }
 
+macro_rules! generate_set_bit {
+    ( $( ($set:ident, $bit:expr) ),* ) => {
+        $(
+            pub fn $set(&mut self) {
+                self.bitor_assign($bit)
+            }
+        )*
+    };
+}
+
+macro_rules! generate_reset_bit {
+    ( $( ($reset:ident, $bit:expr) ),* ) => {
+        $(
+            pub fn $reset(&mut self) {
+                self.bitand_assign(!$bit)
+            }
+        )*
+    };
+}
+
+macro_rules! generate_check_bit {
+    ( $( ($check:ident, $bit_loc:expr) ),* ) => {
+        $(
+            pub fn $check(&self) -> bool {
+                self.shr($bit_loc as u8).bitand(1) == 1
+            }
+        )*
+    };
+}
+
 /// 0---0---0---0---0---0---0---0
 /// N/A N/A N/A AC  P  Z   S   C
 impl ConditionCodes {
-    pub fn set_carry(&mut self) {
-        self.bitor_assign(1)
-    }
+    generate_set_bit![
+        (set_carry, 1),
+        (set_sign, 2),
+        (set_zero, 4),
+        (set_parity, 8),
+        (set_aux_carry, 16)
+    ];
 
-    pub fn reset_carry(&mut self) {
-        self.bitand_assign(!1)
-    }
+    generate_reset_bit![
+        (reset_carry, 1),
+        (reset_sign, 2),
+        (reset_zero, 4),
+        (reset_parity, 8),
+        (reset_aux_carry, 16)
+    ];
 
-    pub fn is_carry_set(&self) -> bool {
-        self.bitand(1) == 1
-    }
-
-    pub fn set_sign(&mut self) {
-        self.bitor_assign(2)
-    }
-
-    pub fn reset_sign(&mut self) {
-        self.bitand_assign(!2)
-    }
-
-    pub fn is_sign(&self) -> bool {
-        self.shr(1u8).bitand(1) == 1
-    }
-
-    pub fn set_zero(&mut self) {
-        self.bitor_assign(4)
-    }
-
-    pub fn reset_zero(&mut self) {
-        self.bitand_assign(!4)
-    }
-
-    pub fn is_zero_set(&self) -> bool {
-        self.shr(2u8).bitand(1) == 1
-    }
-
-    pub fn set_parity(&mut self) {
-        self.bitor_assign(8)
-    }
-
-    pub fn reset_parity(&mut self) {
-        self.bitand_assign(!8)
-    }
-
-    pub fn is_parity(&self) -> bool {
-        self.shr(3u8).bitand(1) == 1
-    }
-
-    pub fn set_aux_carry(&mut self) {
-        self.bitor_assign(16)
-    }
-
-    pub fn reset_aux_carry(&mut self) {
-        self.bitand_assign(!16)
-    }
-
-    pub fn is_aux_carry(&self) -> bool {
-        self.shr(4u8).bitand(1) == 1
-    }
+    generate_check_bit![
+        (is_carry_set, 0),
+        (is_sign, 1),
+        (is_zero_set, 2),
+        (is_parity, 3),
+        (is_aux_carry, 4)
+    ];
 }
