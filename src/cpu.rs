@@ -1019,8 +1019,8 @@ mod tests {
 
     #[test]
     fn cpu_opcode_tests() {
-        let rom = &mut [0u8; self.rom.len()];
-        let mut cpu = Cpu8080::new(rom);
+        let dummy_rom = &vec![0; 0];
+        let mut cpu = Cpu8080::new(dummy_rom);
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;
@@ -1044,12 +1044,24 @@ mod tests {
         assert!(!cpu.conditon_codes.is_carry_set());
 
         // // test DAA
+        cpu.reg_a = 0x9b;
+        cpu.conditon_codes.reset_carry();
+        cpu.conditon_codes.reset_aux_carry();
+        cpu.daa();
+        assert_eq!(cpu.reg_a, 0x1);
+        assert!(cpu.conditon_codes.is_carry_set());
+        assert!(cpu.conditon_codes.is_aux_carry());
+
         cpu.reg_a = 0x88;
+        cpu.conditon_codes.reset_carry();
+        cpu.conditon_codes.reset_aux_carry();
         cpu.add(cpu.reg_a);
         assert!(cpu.conditon_codes.is_carry_set());
         assert!(cpu.conditon_codes.is_aux_carry());
         assert_eq!(0x10, cpu.reg_a);
         cpu.daa();
         assert_eq!(0x76, cpu.reg_a);
+        assert!(cpu.conditon_codes.is_carry_set());
+        assert!(!cpu.conditon_codes.is_aux_carry());
     }
 }
