@@ -31,7 +31,7 @@ macro_rules! generate_move_from_mem {
         $(
             fn $func(&mut self) -> Result<()> {
                 let mem_addr = construct_address((self.reg_l, self.reg_h));
-                Ok(self.$reg = self.load_byte_from_ram(mem_addr.into())?)
+                Ok(self.$reg = self.load_byte_from_memory(mem_addr.into())?)
             }
         )*
     };
@@ -131,8 +131,8 @@ macro_rules! pop_to_reg_pair {
     ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
         $(
             fn $func(&mut self) -> Result<()> {
-                let addr_lo = self.load_byte_from_ram(self.sp.into())?;
-                let addr_hi = self.load_byte_from_ram((self.sp + 1).into())?;
+                let addr_lo = self.load_byte_from_memory(self.sp.into())?;
+                let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
                 (self.$reg_lo, self.$reg_hi) = (addr_lo, addr_hi);
                 self.sp += 2;
                 Ok(())
@@ -292,7 +292,8 @@ impl<'a> Cpu8080<'a> {
         self.set_carry(carry == 1);
     }
 
-    fn load_byte_from_ram(&self, addr: usize) -> Result<u8> {
+    /// It is allowed to load content from either ROM or RAM
+    fn load_byte_from_memory(&self, addr: usize) -> Result<u8> {
         if addr >= self.rom.len() {
             Ok(*self
                 .ram
@@ -303,6 +304,7 @@ impl<'a> Cpu8080<'a> {
         }
     }
 
+    /// It is only allowed to write to RAM, we shall never write to ROM
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
         *self
             .ram
@@ -325,28 +327,28 @@ impl<'a> Cpu8080<'a> {
 
     fn add_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.add(value);
         Ok(())
     }
 
     fn sub_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.sub(value);
         Ok(())
     }
 
     fn adc_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.adc(value);
         Ok(())
     }
 
     fn sbb_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.sbb(value);
         Ok(())
     }
@@ -379,7 +381,7 @@ impl<'a> Cpu8080<'a> {
 
     fn ana_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.and(value);
         Ok(())
     }
@@ -400,7 +402,7 @@ impl<'a> Cpu8080<'a> {
 
     fn xra_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.xor(value);
         Ok(())
     }
@@ -422,7 +424,7 @@ impl<'a> Cpu8080<'a> {
 
     fn ora_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.or(value);
         Ok(())
     }
@@ -434,7 +436,7 @@ impl<'a> Cpu8080<'a> {
 
     fn cmp_m(&mut self) -> Result<()> {
         let mem_addr = construct_address((self.reg_l, self.reg_h));
-        let value = self.load_byte_from_ram(mem_addr.into())?;
+        let value = self.load_byte_from_memory(mem_addr.into())?;
         self.cmp(value);
         Ok(())
     }
@@ -473,13 +475,13 @@ impl<'a> Cpu8080<'a> {
 
     fn inr_m(&mut self) -> Result<()> {
         let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
-        self.store_to_ram(addr, self.load_byte_from_ram(addr)? + 1)?;
+        self.store_to_ram(addr, self.load_byte_from_memory(addr)? + 1)?;
         Ok(())
     }
 
     fn dcr_m(&mut self) -> Result<()> {
         let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
-        self.store_to_ram(addr, self.load_byte_from_ram(addr)? - 1)?;
+        self.store_to_ram(addr, self.load_byte_from_memory(addr)? - 1)?;
         Ok(())
     }
 
@@ -517,8 +519,8 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn execute(&mut self) -> Result<()> {
-        let opcode = self.rom.get(self.pc as usize).ok_or(MemoryOutOfBounds)?;
-        match *opcode {
+        let opcode = self.load_byte_from_memory(self.pc.into())?;
+        match opcode {
             0x00 | 0x08 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0x40 | 0x49 | 0x52 | 0x5b
             | 0x64 | 0x6d | 0x7f | 0xcb | 0xd9 | 0xdd | 0xed | 0xfd => (),
             0x01 => self.load_data_into_reg_pair_b()?,
@@ -534,7 +536,7 @@ impl<'a> Cpu8080<'a> {
             0x09 => self.dad(construct_address((self.reg_c, self.reg_b))),
             0x0a => {
                 self.reg_a =
-                    self.load_byte_from_ram(construct_address((self.reg_c, self.reg_b)).into())?
+                    self.load_byte_from_memory(construct_address((self.reg_c, self.reg_b)).into())?
             }
             0x0b => self.dcx_b(),
             0x0c => self.inr_c(),
@@ -554,7 +556,7 @@ impl<'a> Cpu8080<'a> {
             0x19 => self.dad(construct_address((self.reg_e, self.reg_d))),
             0x1a => {
                 self.reg_a =
-                    self.load_byte_from_ram(construct_address((self.reg_e, self.reg_d)).into())?
+                    self.load_byte_from_memory(construct_address((self.reg_e, self.reg_d)).into())?
             }
             0x1b => self.dcx_d(),
             0x1c => self.inr_e(),
@@ -800,8 +802,8 @@ impl<'a> Cpu8080<'a> {
 
     fn lhld(&mut self) -> Result<()> {
         let address = construct_address(self.load_d16_operand()?);
-        let lo = self.load_byte_from_ram(address.into())?;
-        let hi = self.load_byte_from_ram((address + 1).into())?;
+        let lo = self.load_byte_from_memory(address.into())?;
+        let hi = self.load_byte_from_memory((address + 1).into())?;
         (self.reg_l, self.reg_h) = (lo, hi);
         self.pc += 2;
         Ok(())
@@ -832,7 +834,7 @@ impl<'a> Cpu8080<'a> {
 
     fn lda(&mut self) -> Result<()> {
         let address = construct_address(self.load_d16_operand()?);
-        self.reg_a = self.load_byte_from_ram(address.into())?;
+        self.reg_a = self.load_byte_from_memory(address.into())?;
         self.pc += 2;
         Ok(())
     }
@@ -844,8 +846,8 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn pop_psw(&mut self) -> Result<()> {
-        let lo = self.load_byte_from_ram(self.sp.into())?;
-        let hi = self.load_byte_from_ram((self.sp + 1).into())?;
+        let lo = self.load_byte_from_memory(self.sp.into())?;
+        let hi = self.load_byte_from_memory((self.sp + 1).into())?;
         (*self.conditon_codes.deref_mut(), self.reg_a) = (lo, hi);
         self.sp += 2;
         Ok(())
@@ -961,8 +963,8 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn ret(&mut self) -> Result<()> {
-        let addr_lo = self.load_byte_from_ram(self.sp.into())?;
-        let addr_hi = self.load_byte_from_ram((self.sp + 1).into())?;
+        let addr_lo = self.load_byte_from_memory(self.sp.into())?;
+        let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
         self.pc = construct_address((addr_lo, addr_hi));
         self.sp += 2;
         println!(
@@ -976,22 +978,13 @@ impl<'a> Cpu8080<'a> {
     /// get operand parts in (lo, hi)
     fn load_d16_operand(&self) -> Result<(u8, u8)> {
         Ok((
-            *self
-                .rom
-                .get((self.pc + 1) as usize)
-                .ok_or(MemoryOutOfBounds)?,
-            *self
-                .rom
-                .get((self.pc + 2) as usize)
-                .ok_or(MemoryOutOfBounds)?,
+            self.load_byte_from_memory((self.pc + 1).into())?,
+            self.load_byte_from_memory((self.pc + 2).into())?,
         ))
     }
 
     fn load_d8_operand(&mut self) -> Result<u8> {
-        let value = *self
-            .rom
-            .get((self.pc + 1) as usize)
-            .ok_or(MemoryOutOfBounds)?;
+        let value = self.load_byte_from_memory((self.pc + 1).into())?;
         self.pc += 1;
         Ok(value)
     }
