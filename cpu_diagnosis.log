@@ -88,5 +88,6 @@ Jump from 0x02be to address: 0x0321
 Accumulator = 0x00d9 condition_code: AC = 1, P = 1, Z = 1, S = 0, C = 0
 
 call into address: 0x0146 from 0x06a2, sp = 0x07a6
+call into address: 0x0005 from 0x014a, sp = 0x07a2
 msg addr: 0x0178
  CPU IS OPERATIONAL
