@@ -10,9 +10,9 @@ const RAM_SIZE: usize = 0x2000;
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct Cpu8080 {
+pub struct Cpu8080<'a> {
     ram: [u8; RAM_SIZE],
-    rom: Vec<u8>,
+    rom: &'a Vec<u8>,
     sp: u16,
     pc: u16,
     reg_a: u8,
@@ -154,8 +154,8 @@ macro_rules! push_to_reg_pair {
     };
 }
 
-impl Cpu8080 {
-    pub fn new(rom: Vec<u8>) -> Self {
+impl<'a> Cpu8080<'a> {
+    pub fn new(rom: &'a Vec<u8>) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
