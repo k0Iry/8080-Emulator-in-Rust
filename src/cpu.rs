@@ -906,15 +906,15 @@ impl<'a> Cpu8080<'a> {
 
     fn rst(&mut self, rst_no: u8) -> Result<()> {
         match rst_no {
-            7 => {
+            1 | 2 | 7 => {
                 let pc_in_bytes = (self.pc + 2).to_be_bytes();
                 self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
                 self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
                 self.sp -= 2;
-                self.pc = 0x38 - 1;
+                self.pc = rst_no as u16 * 8 - 1;
                 println!("rst into address: {:#06x}", self.pc + 1);
             }
-            _ => panic!("unsupported"),
+            _ => panic!("unsupported IRQ {rst_no}"),
         }
         Ok(())
     }
