@@ -2,7 +2,7 @@ mod condition_codes;
 mod cpu;
 mod errors;
 
-pub use errors::{EmulatorErrors, InvalidFile, MemoryOutOfBounds, RomReadFailure};
+pub use errors::{EmulatorErrors, InvalidFile, MemoryOutOfBounds};
 
 pub type Result<T> = std::result::Result<T, EmulatorErrors>;
 

@@ -7,9 +7,6 @@ pub struct InvalidFile;
 pub struct MemoryOutOfBounds;
 
 #[derive(Debug)]
-pub struct RomReadFailure;
-
-#[derive(Debug)]
 pub enum EmulatorErrors {
     Io(io::Error),
     InvalidFile(InvalidFile),
