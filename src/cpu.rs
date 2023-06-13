@@ -1,10 +1,14 @@
-use core::panic;
+use core::{panic, time};
 use std::{
     mem,
     ops::{Deref, DerefMut},
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result};
+use std::sync::mpsc::channel;
+
+use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result, CLOCK_CYCLES};
 
 const RAM_SIZE: usize = 0x2000;
 
@@ -512,13 +516,32 @@ impl<'a> Cpu8080<'a> {
     ];
 
     pub fn run(&mut self) -> Result<()> {
+        let (send, recv) = channel();
+        // simulating 60Hz, a dedicated thread for timer interrupts
+        // each time, we generate an interrupt for updating the vram
+        thread::spawn(move || {
+            let mut interrupt = 1;
+            loop {
+                thread::sleep(time::Duration::from_secs_f64(1.0f64 / 60.0));
+                send.send(interrupt).unwrap();
+                interrupt = if interrupt == 1 { 2 } else { 1 }
+            }
+        });
         while self.pc < self.rom.len() as u16 {
-            self.execute()?
+            self.execute()?;
+            if let Ok(irq_no) = recv.try_recv() {
+                self.pc -= 1;
+                self.rst(irq_no)?;
+            }
         }
         Ok(())
     }
 
     fn execute(&mut self) -> Result<()> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros();
         let opcode = self.load_byte_from_memory(self.pc.into())?;
         match opcode {
             0x00 | 0x08 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0x40 | 0x49 | 0x52 | 0x5b
@@ -776,6 +799,16 @@ impl<'a> Cpu8080<'a> {
             0xff => self.rst(7)?,
         }
         self.pc += 1;
+        // execute instructions as if 2Mhz
+        let time_spent = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros()
+            - now;
+        let circle = CLOCK_CYCLES[opcode as usize] as u64;
+        if circle > time_spent as u64 {
+            thread::sleep(Duration::from_micros(circle - time_spent as u64));
+        }
         Ok(())
     }
 
@@ -907,12 +940,17 @@ impl<'a> Cpu8080<'a> {
     fn rst(&mut self, rst_no: u8) -> Result<()> {
         match rst_no {
             1 | 2 | 7 => {
-                let pc_in_bytes = (self.pc + 2).to_be_bytes();
+                let pc_in_bytes = self.pc.to_be_bytes();
                 self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
                 self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
                 self.sp -= 2;
+                let old_pc = self.pc + 1;
                 self.pc = rst_no as u16 * 8 - 1;
-                println!("rst into address: {:#06x}", self.pc + 1);
+                println!(
+                    "rst into address: {:#06x} from {:#06x}",
+                    self.pc + 1,
+                    old_pc
+                );
             }
             _ => panic!("unsupported IRQ {rst_no}"),
         }
