@@ -48,7 +48,8 @@ fn main() -> Result<()> {
     );
     let bytes = BufReader::new(File::open(invader)?).bytes();
     let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
-    let mut cpu = Cpu8080::new(&rom);
+    let mut ram = vec![0; 0x2000];
+    let mut cpu = Cpu8080::new(&rom, &mut ram);
     cpu.run()?;
     Ok(())
 }

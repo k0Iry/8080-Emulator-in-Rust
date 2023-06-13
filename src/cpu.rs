@@ -10,12 +10,9 @@ use std::sync::mpsc::channel;
 
 use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result, CLOCK_CYCLES};
 
-const RAM_SIZE: usize = 0x2000;
-
-#[derive(Debug)]
 #[repr(C)]
 pub struct Cpu8080<'a> {
-    ram: [u8; RAM_SIZE],
+    ram: &'a mut Vec<u8>,
     rom: &'a Vec<u8>,
     sp: u16,
     pc: u16,
@@ -159,7 +156,8 @@ macro_rules! push_to_reg_pair {
 }
 
 impl<'a> Cpu8080<'a> {
-    pub fn new(rom: &'a Vec<u8>) -> Self {
+    #[no_mangle]
+    pub extern "C" fn new(rom: &'a Vec<u8>, ram: &'a mut Vec<u8>) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -171,7 +169,7 @@ impl<'a> Cpu8080<'a> {
             sp: 0,
             pc: 0,
             rom,
-            ram: [0; RAM_SIZE],
+            ram,
             conditon_codes: ConditionCodes::default(),
             interrupt_enabled: false,
         }
@@ -1058,7 +1056,8 @@ mod tests {
     #[test]
     fn cpu_opcode_tests() {
         let dummy_rom = &vec![0; 0];
-        let mut cpu = Cpu8080::new(dummy_rom);
+        let dummy_ram = &mut vec![0; 0];
+        let mut cpu = Cpu8080::new(dummy_rom, dummy_ram);
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;
