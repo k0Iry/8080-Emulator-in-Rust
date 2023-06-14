@@ -7,6 +7,18 @@ typedef struct Vec_u8 Vec_u8;
 
 typedef uint8_t ConditionCodes;
 
+typedef struct SwiftCallbacks {
+  /**
+   * IN port, pass port number back to app
+   * set the calculated result back to reg_a
+   */
+  uint8_t (*input)(uint8_t port);
+  /**
+   * OUT port value, pass port & value back to app
+   */
+  void (*output)(uint8_t port, uint8_t shift_offset);
+} SwiftCallbacks;
+
 typedef struct Cpu8080 {
   struct Vec_u8 *ram;
   const struct Vec_u8 *rom;
@@ -21,6 +33,7 @@ typedef struct Cpu8080 {
   uint8_t reg_l;
   ConditionCodes conditon_codes;
   bool interrupt_enabled;
+  struct SwiftCallbacks callbacks;
 } Cpu8080;
 
 /**
@@ -28,7 +41,9 @@ typedef struct Cpu8080 {
  * This function should be called with valid rom path
  * and the RAM will be allocated on the fly
  */
-struct Cpu8080 *new_cpu_instance(const char *rom_path, uintptr_t ram_len);
+struct Cpu8080 *new_cpu_instance(const char *rom_path,
+                                 uintptr_t ram_len,
+                                 struct SwiftCallbacks callbacks);
 
 /**
  * # Safety

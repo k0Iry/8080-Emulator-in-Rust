@@ -8,7 +8,9 @@ use std::{
 
 use std::sync::mpsc::channel;
 
-use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result, CLOCK_CYCLES};
+use crate::{
+    condition_codes::ConditionCodes, MemoryOutOfBounds, Result, SwiftCallbacks, CLOCK_CYCLES,
+};
 
 #[repr(C)]
 pub struct Cpu8080<'a> {
@@ -25,6 +27,7 @@ pub struct Cpu8080<'a> {
     reg_l: u8,
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
+    callbacks: SwiftCallbacks,
 }
 
 macro_rules! generate_move_from_mem {
@@ -157,7 +160,11 @@ macro_rules! push_to_reg_pair {
 
 impl<'a> Cpu8080<'a> {
     #[no_mangle]
-    pub extern "C" fn new(rom: &'a Vec<u8>, ram: &'a mut Vec<u8>) -> Self {
+    pub extern "C" fn new(
+        rom: &'a Vec<u8>,
+        ram: &'a mut Vec<u8>,
+        callbacks: SwiftCallbacks,
+    ) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -172,6 +179,7 @@ impl<'a> Cpu8080<'a> {
             ram,
             conditon_codes: ConditionCodes::default(),
             interrupt_enabled: false,
+            callbacks,
         }
     }
 
@@ -962,14 +970,14 @@ impl<'a> Cpu8080<'a> {
     /// TODO...
     fn output(&mut self) -> Result<()> {
         let dev_no = self.load_d8_operand()?;
-        println!("accumulator {} sent to device {dev_no}", self.reg_a);
+        (self.callbacks.output)(dev_no, self.reg_a);
         Ok(())
     }
 
     /// TODO...
     fn input(&mut self) -> Result<()> {
         let dev_no = self.load_d8_operand()?;
-        println!("Read from device {dev_no} and save to reg_a");
+        self.reg_a = (self.callbacks.input)(dev_no);
         Ok(())
     }
 
@@ -1061,7 +1069,13 @@ mod tests {
     fn cpu_opcode_tests() {
         let dummy_rom = &vec![0; 0];
         let dummy_ram = &mut vec![0; 0];
-        let mut cpu = Cpu8080::new(dummy_rom, dummy_ram);
+        pub extern "C" fn input(port: u8) -> u8 {
+            port
+        }
+        pub extern "C" fn output(port: u8, value: u8) {
+            println!("{port}, {value}")
+        }
+        let mut cpu = Cpu8080::new(dummy_rom, dummy_ram, SwiftCallbacks { input, output });
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;
