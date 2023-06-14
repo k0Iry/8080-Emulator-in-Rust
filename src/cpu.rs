@@ -485,7 +485,8 @@ impl<'a> Cpu8080<'a> {
 
     fn inr_m(&mut self) -> Result<()> {
         let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
-        self.store_to_ram(addr, self.load_byte_from_memory(addr)? + 1)?;
+        let value = self.set_condition_bits(self.load_byte_from_memory(addr)?.into(), 1) as u8;
+        self.store_to_ram(addr, value)?;
         Ok(())
     }
 
@@ -967,14 +968,12 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
-    /// TODO...
     fn output(&mut self) -> Result<()> {
         let dev_no = self.load_d8_operand()?;
         (self.callbacks.output)(dev_no, self.reg_a);
         Ok(())
     }
 
-    /// TODO...
     fn input(&mut self) -> Result<()> {
         let dev_no = self.load_d8_operand()?;
         self.reg_a = (self.callbacks.input)(dev_no);
