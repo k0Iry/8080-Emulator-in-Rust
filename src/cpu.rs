@@ -483,7 +483,11 @@ impl<'a> Cpu8080<'a> {
 
     fn dcr_m(&mut self) -> Result<()> {
         let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
-        self.store_to_ram(addr, self.load_byte_from_memory(addr)? - 1)?;
+        let value = self.set_condition_bits(
+            self.load_byte_from_memory(addr)?.into(),
+            1u8.wrapping_neg().into(),
+        ) as u8;
+        self.store_to_ram(addr, value)?;
         Ok(())
     }
 
