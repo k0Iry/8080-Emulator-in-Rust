@@ -45,7 +45,7 @@ pub unsafe extern "C" fn new_cpu_instance(
         .bytes()
         .collect::<std::result::Result<Vec<u8>, std::io::Error>>()
         .unwrap();
-    let rom = Box::leak(Box::new(bytes));
+    let rom = &*Box::leak(Box::new(bytes));
     let ram = Box::leak(Box::new(vec![0; ram_size]));
     Box::into_raw(Box::new(Cpu8080::new(rom, ram, callbacks)))
 }
