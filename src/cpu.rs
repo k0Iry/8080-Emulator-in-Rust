@@ -377,10 +377,7 @@ impl<'a> Cpu8080<'a> {
 
     fn and(&mut self, value: u8) {
         self.reg_a &= value;
-        self.set_carry(false); // always reset carry
-        self.set_zero(self.reg_a == 0);
-        self.set_sign(self.reg_a >= 0x80);
-        self.set_parity(self.reg_a.count_ones() % 2 == 0);
+        self.logical_condtion_set();
     }
 
     fn ani(&mut self) -> Result<()> {
@@ -398,10 +395,7 @@ impl<'a> Cpu8080<'a> {
 
     fn xor(&mut self, value: u8) {
         self.reg_a ^= value;
-        self.set_carry(false); // always reset carry
-        self.set_zero(self.reg_a == 0);
-        self.set_sign(self.reg_a >= 0x80);
-        self.set_parity(self.reg_a.count_ones() % 2 == 0);
+        self.logical_condtion_set();
     }
 
     fn xri(&mut self) -> Result<()> {
@@ -417,13 +411,17 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
-    fn or(&mut self, value: u8) {
-        self.reg_a |= value;
+    fn logical_condtion_set(&mut self) {
         self.set_carry(false); // always reset carry
         self.set_zero(self.reg_a == 0);
         self.set_sign(self.reg_a >= 0x80);
         self.conditon_codes.reset_aux_carry();
         self.set_parity(self.reg_a.count_ones() % 2 == 0);
+    }
+
+    fn or(&mut self, value: u8) {
+        self.reg_a |= value;
+        self.logical_condtion_set();
     }
 
     fn ori(&mut self) -> Result<()> {
