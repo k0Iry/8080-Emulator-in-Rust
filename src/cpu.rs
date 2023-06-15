@@ -244,16 +244,16 @@ impl<'a> Cpu8080<'a> {
         }
     }
 
-    fn set_parity(&mut self, is_parity: bool) {
-        if is_parity {
+    fn set_parity(&mut self, is_parity_set: bool) {
+        if is_parity_set {
             self.conditon_codes.set_parity()
         } else {
             self.conditon_codes.reset_parity()
         }
     }
 
-    fn set_sign(&mut self, is_sign: bool) {
-        if is_sign {
+    fn set_sign(&mut self, is_sign_set: bool) {
+        if is_sign_set {
             self.conditon_codes.set_sign()
         } else {
             self.conditon_codes.reset_sign()
@@ -778,34 +778,34 @@ impl<'a> Cpu8080<'a> {
             0xdc => self.call_on_carry(self.conditon_codes.is_carry_set())?,
             0xde => self.sbi()?,
             0xdf => self.rst(3)?,
-            0xe0 => self.ret_on_parity(!self.conditon_codes.is_parity())?,
+            0xe0 => self.ret_on_parity(!self.conditon_codes.is_parity_set())?,
             0xe1 => self.pop_h()?,
-            0xe2 => self.jump_on_parity(!self.conditon_codes.is_parity())?,
+            0xe2 => self.jump_on_parity(!self.conditon_codes.is_parity_set())?,
             0xe3 => self.xthl(),
-            0xe4 => self.call_on_parity(!self.conditon_codes.is_parity())?,
+            0xe4 => self.call_on_parity(!self.conditon_codes.is_parity_set())?,
             0xe5 => self.push_h()?,
             0xe6 => self.ani()?,
             0xe7 => self.rst(4)?,
-            0xe8 => self.ret_on_parity(self.conditon_codes.is_parity())?,
+            0xe8 => self.ret_on_parity(self.conditon_codes.is_parity_set())?,
             0xe9 => self.pc = construct_address((self.reg_l, self.reg_h)) - 1,
-            0xea => self.jump_on_parity(self.conditon_codes.is_parity())?,
+            0xea => self.jump_on_parity(self.conditon_codes.is_parity_set())?,
             0xeb => self.xchg(),
-            0xec => self.call_on_parity(self.conditon_codes.is_parity())?,
+            0xec => self.call_on_parity(self.conditon_codes.is_parity_set())?,
             0xee => self.xri()?,
             0xef => self.rst(5)?,
-            0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign())?,
+            0xf0 => self.ret_on_sign(!self.conditon_codes.is_sign_set())?,
             0xf1 => self.pop_psw()?,
-            0xf2 => self.jump_on_sign(!self.conditon_codes.is_sign())?,
+            0xf2 => self.jump_on_sign(!self.conditon_codes.is_sign_set())?,
             0xf3 => self.interrupt_enabled = false,
-            0xf4 => self.call_on_sign(!self.conditon_codes.is_sign())?,
+            0xf4 => self.call_on_sign(!self.conditon_codes.is_sign_set())?,
             0xf5 => self.push_psw()?,
             0xf6 => self.ori()?,
             0xf7 => self.rst(6)?,
-            0xf8 => self.ret_on_sign(self.conditon_codes.is_sign())?,
+            0xf8 => self.ret_on_sign(self.conditon_codes.is_sign_set())?,
             0xf9 => self.sp = construct_address((self.reg_l, self.reg_h)),
-            0xfa => self.jump_on_sign(self.conditon_codes.is_sign())?,
+            0xfa => self.jump_on_sign(self.conditon_codes.is_sign_set())?,
             0xfb => self.interrupt_enabled = true,
-            0xfc => self.call_on_sign(self.conditon_codes.is_sign())?,
+            0xfc => self.call_on_sign(self.conditon_codes.is_sign_set())?,
             0xfe => self.cpi()?,
             0xff => self.rst(7)?,
         }
@@ -832,8 +832,8 @@ impl<'a> Cpu8080<'a> {
     generate_call_on_condition![
         (call_on_zero, is_zero_set),
         (call_on_carry, is_carry_set),
-        (call_on_parity, is_parity_set),
-        (call_on_sign, is_sign_set)
+        (call_on_parity, is_parity_set_set),
+        (call_on_sign, is_sign_set_set)
     ];
 
     fn shld(&mut self) -> Result<()> {
@@ -981,7 +981,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn daa(&mut self) {
-        if (self.reg_a & 0xf) > 0x9 || self.conditon_codes.is_aux_carry() {
+        if (self.reg_a & 0xf) > 0x9 || self.conditon_codes.is_aux_carry_set() {
             let aux_carry = self.reg_a as u16 + 6;
             if (aux_carry & 0xf) < 0x6 {
                 self.conditon_codes.set_aux_carry()
@@ -1005,8 +1005,8 @@ impl<'a> Cpu8080<'a> {
     generate_return_on_condition![
         (ret_on_zero, is_zero_set),
         (ret_on_carry, is_carry_set),
-        (ret_on_parity, is_parity_set),
-        (ret_on_sign, is_sign_set)
+        (ret_on_parity, is_parity_set_set),
+        (ret_on_sign, is_sign_set_set)
     ];
 
     fn ret(&mut self) -> Result<()> {
@@ -1039,8 +1039,8 @@ impl<'a> Cpu8080<'a> {
     generate_jump_on_condition![
         (jump_on_zero, is_zero_set),
         (jump_on_carry, is_carry_set),
-        (jump_on_parity, is_parity_set),
-        (jump_on_sign, is_sign_set)
+        (jump_on_parity, is_parity_set_set),
+        (jump_on_sign, is_sign_set_set)
     ];
 
     fn jmp(&mut self) -> Result<()> {
@@ -1104,18 +1104,18 @@ mod tests {
         cpu.daa();
         assert_eq!(cpu.reg_a, 0x1);
         assert!(cpu.conditon_codes.is_carry_set());
-        assert!(cpu.conditon_codes.is_aux_carry());
+        assert!(cpu.conditon_codes.is_aux_carry_set());
 
         cpu.reg_a = 0x88;
         cpu.conditon_codes.reset_carry();
         cpu.conditon_codes.reset_aux_carry();
         cpu.add(cpu.reg_a);
         assert!(cpu.conditon_codes.is_carry_set());
-        assert!(cpu.conditon_codes.is_aux_carry());
+        assert!(cpu.conditon_codes.is_aux_carry_set());
         assert_eq!(0x10, cpu.reg_a);
         cpu.daa();
         assert_eq!(0x76, cpu.reg_a);
         assert!(cpu.conditon_codes.is_carry_set());
-        assert!(!cpu.conditon_codes.is_aux_carry());
+        assert!(!cpu.conditon_codes.is_aux_carry_set());
     }
 }

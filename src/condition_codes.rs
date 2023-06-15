@@ -85,9 +85,9 @@ impl ConditionCodes {
 
     generate_check_bit![
         (is_carry_set, 0),
-        (is_sign, 1),
+        (is_sign_set, 1),
         (is_zero_set, 2),
-        (is_parity, 3),
-        (is_aux_carry, 4)
+        (is_parity_set, 3),
+        (is_aux_carry_set, 4)
     ];
 }

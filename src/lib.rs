@@ -27,7 +27,7 @@ pub struct SwiftCallbacks {
     /// set the calculated result back to reg_a
     pub input: extern "C" fn(port: u8) -> u8,
     /// OUT port value, pass port & value back to app
-    pub output: extern "C" fn(port: u8, shift_offset: u8),
+    pub output: extern "C" fn(port: u8, value: u8),
 }
 
 /// # Safety
@@ -36,7 +36,7 @@ pub struct SwiftCallbacks {
 #[no_mangle]
 pub unsafe extern "C" fn new_cpu_instance(
     rom_path: *const c_char,
-    ram_len: usize,
+    ram_size: usize,
     callbacks: SwiftCallbacks,
 ) -> *mut Cpu8080<'static> {
     let rom_path = unsafe { CStr::from_ptr(rom_path) };
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn new_cpu_instance(
         .collect::<std::result::Result<Vec<u8>, std::io::Error>>()
         .unwrap();
     let rom = Box::leak(Box::new(bytes));
-    let ram = Box::leak(Box::new(vec![0; ram_len]));
+    let ram = Box::leak(Box::new(vec![0; ram_size]));
     Box::into_raw(Box::new(Cpu8080::new(rom, ram, callbacks)))
 }
 

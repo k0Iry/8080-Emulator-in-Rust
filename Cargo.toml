@@ -21,6 +21,6 @@ bdos = []
 
 [lib]
 doctest = false
-crate-type = ["lib", "staticlib", "cdylib"]
+crate-type = ["lib", "cdylib"]
 
 [dependencies]

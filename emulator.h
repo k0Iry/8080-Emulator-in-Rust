@@ -16,7 +16,7 @@ typedef struct SwiftCallbacks {
   /**
    * OUT port value, pass port & value back to app
    */
-  void (*output)(uint8_t port, uint8_t shift_offset);
+  void (*output)(uint8_t port, uint8_t value);
 } SwiftCallbacks;
 
 typedef struct Cpu8080 {
@@ -42,7 +42,7 @@ typedef struct Cpu8080 {
  * and the RAM will be allocated on the fly
  */
 struct Cpu8080 *new_cpu_instance(const char *rom_path,
-                                 uintptr_t ram_len,
+                                 uintptr_t ram_size,
                                  struct SwiftCallbacks callbacks);
 
 /**
