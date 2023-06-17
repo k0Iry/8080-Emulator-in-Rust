@@ -541,6 +541,7 @@ impl<'a> Cpu8080<'a> {
             if let Ok(irq_no) = recv.try_recv() {
                 self.pc -= 1;
                 self.rst(irq_no)?;
+                self.pc += 1;
             }
         }
         Ok(())
@@ -956,7 +957,7 @@ impl<'a> Cpu8080<'a> {
                 let old_pc = self.pc + 1;
                 self.pc = rst_no as u16 * 8 - 1;
                 println!(
-                    "rst into address: {:#06x} from {:#06x}",
+                    "Interrupted into address: {:#06x} from {:#06x}",
                     self.pc + 1,
                     old_pc
                 );
