@@ -948,6 +948,9 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn rst(&mut self, rst_no: u8) -> Result<()> {
+        if !self.interrupt_enabled {
+            return Ok(())
+        }
         match rst_no {
             1 | 2 | 7 => {
                 let pc_in_bytes = self.pc.to_be_bytes();
@@ -964,6 +967,7 @@ impl<'a> Cpu8080<'a> {
             }
             _ => panic!("unsupported IRQ {rst_no}"),
         }
+        self.interrupt_enabled = false;
         Ok(())
     }
 
