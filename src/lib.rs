@@ -22,7 +22,7 @@ pub use condition_codes::ConditionCodes;
 pub use clock_cycles::cycles::CLOCK_CYCLES;
 
 #[repr(C)]
-pub struct SwiftCallbacks {
+pub struct IoCallbacks {
     /// IN port, pass port number back to app
     /// set the calculated result back to reg_a
     pub input: extern "C" fn(port: u8) -> u8,
@@ -37,7 +37,7 @@ pub struct SwiftCallbacks {
 pub unsafe extern "C" fn new_cpu_instance(
     rom_path: *const c_char,
     ram_size: usize,
-    callbacks: SwiftCallbacks,
+    callbacks: IoCallbacks,
 ) -> *mut Cpu8080<'static> {
     let rom_path = unsafe { CStr::from_ptr(rom_path) };
     let rom_path = PathBuf::from_str(rom_path.to_str().unwrap()).unwrap();

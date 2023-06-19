@@ -3,7 +3,7 @@ use std::{
     io::{BufReader, Read},
 };
 
-use emulator::{Cpu8080, InvalidFile, Result, SwiftCallbacks};
+use emulator::{Cpu8080, InvalidFile, IoCallbacks, Result};
 
 /// Brief information of registers and instructions
 /// The 8080 provides the programmer with an 8-bit ac- cumulator and 6 additional 8-bit "scratchpad" registers.
@@ -55,7 +55,7 @@ fn main() -> Result<()> {
     pub extern "C" fn output(port: u8, value: u8) {
         println!("{port}, {value}")
     }
-    let mut cpu = Cpu8080::new(&rom, &mut ram, SwiftCallbacks { input, output });
+    let mut cpu = Cpu8080::new(&rom, &mut ram, IoCallbacks { input, output });
     cpu.run()?;
     Ok(())
 }

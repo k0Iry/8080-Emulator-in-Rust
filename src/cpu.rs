@@ -9,7 +9,7 @@ use std::{
 use std::sync::mpsc::channel;
 
 use crate::{
-    condition_codes::ConditionCodes, MemoryOutOfBounds, Result, SwiftCallbacks, CLOCK_CYCLES,
+    condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
 };
 
 #[repr(C)]
@@ -27,7 +27,7 @@ pub struct Cpu8080<'a> {
     reg_l: u8,
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
-    callbacks: SwiftCallbacks,
+    callbacks: IoCallbacks,
 }
 
 macro_rules! generate_move_from_mem {
@@ -159,12 +159,7 @@ macro_rules! push_to_reg_pair {
 }
 
 impl<'a> Cpu8080<'a> {
-    #[no_mangle]
-    pub extern "C" fn new(
-        rom: &'a Vec<u8>,
-        ram: &'a mut Vec<u8>,
-        callbacks: SwiftCallbacks,
-    ) -> Self {
+    pub fn new(rom: &'a Vec<u8>, ram: &'a mut Vec<u8>, callbacks: IoCallbacks) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -949,7 +944,7 @@ impl<'a> Cpu8080<'a> {
 
     fn rst(&mut self, rst_no: u8) -> Result<()> {
         if !self.interrupt_enabled {
-            return Ok(())
+            return Ok(());
         }
         match rst_no {
             1 | 2 | 7 => {
@@ -1077,7 +1072,7 @@ mod tests {
         pub extern "C" fn output(port: u8, value: u8) {
             println!("{port}, {value}")
         }
-        let mut cpu = Cpu8080::new(dummy_rom, dummy_ram, SwiftCallbacks { input, output });
+        let mut cpu = Cpu8080::new(dummy_rom, dummy_ram, IoCallbacks { input, output });
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;

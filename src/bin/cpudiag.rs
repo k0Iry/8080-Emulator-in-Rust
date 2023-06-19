@@ -3,7 +3,7 @@ use std::{
     io::{BufReader, Read},
 };
 
-use emulator::{Cpu8080, InvalidFile, Result, SwiftCallbacks};
+use emulator::{Cpu8080, InvalidFile, IoCallbacks, Result};
 
 fn main() -> Result<()> {
     let cpudiag_prog = std::env::current_dir()?.join("roms/cpudiag");
@@ -21,7 +21,7 @@ fn main() -> Result<()> {
     pub extern "C" fn output(port: u8, value: u8) {
         println!("{port}, {value}")
     }
-    let mut cpu = Cpu8080::new(&rom, &mut ram, SwiftCallbacks { input, output });
+    let mut cpu = Cpu8080::new(&rom, &mut ram, IoCallbacks { input, output });
     cpu.run()?;
     Ok(())
 }

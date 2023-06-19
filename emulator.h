@@ -7,7 +7,7 @@ typedef struct Vec_u8 Vec_u8;
 
 typedef uint8_t ConditionCodes;
 
-typedef struct SwiftCallbacks {
+typedef struct IoCallbacks {
   /**
    * IN port, pass port number back to app
    * set the calculated result back to reg_a
@@ -17,7 +17,7 @@ typedef struct SwiftCallbacks {
    * OUT port value, pass port & value back to app
    */
   void (*output)(uint8_t port, uint8_t value);
-} SwiftCallbacks;
+} IoCallbacks;
 
 typedef struct Cpu8080 {
   struct Vec_u8 *ram;
@@ -33,7 +33,7 @@ typedef struct Cpu8080 {
   uint8_t reg_l;
   ConditionCodes conditon_codes;
   bool interrupt_enabled;
-  struct SwiftCallbacks callbacks;
+  struct IoCallbacks callbacks;
 } Cpu8080;
 
 /**
@@ -43,7 +43,7 @@ typedef struct Cpu8080 {
  */
 struct Cpu8080 *new_cpu_instance(const char *rom_path,
                                  uintptr_t ram_size,
-                                 struct SwiftCallbacks callbacks);
+                                 struct IoCallbacks callbacks);
 
 /**
  * # Safety
