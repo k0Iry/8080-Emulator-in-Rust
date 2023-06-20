@@ -314,10 +314,9 @@ impl<'a> Cpu8080<'a> {
 
     /// It is only allowed to write to RAM, we shall never write to ROM
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
-        *self
-            .ram
-            .get_mut(addr - self.rom.len())
-            .ok_or(MemoryOutOfBounds)? = value;
+        if let Some(content) = self.ram.get_mut(addr - self.rom.len()) {
+            *content = value
+        }
         Ok(())
     }
 
@@ -528,9 +527,7 @@ impl<'a> Cpu8080<'a> {
         while self.pc < self.rom.len() as u16 {
             self.execute()?;
             if let Ok(irq_no) = recv.try_recv() {
-                self.pc -= 1;
                 self.rst(irq_no)?;
-                self.pc += 1;
             }
         }
         Ok(())
@@ -542,6 +539,7 @@ impl<'a> Cpu8080<'a> {
             .unwrap()
             .as_micros();
         let opcode = self.load_byte_from_memory(self.pc.into())?;
+        self.pc += 1;
         match opcode {
             0x00 | 0x08 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0x40 | 0x49 | 0x52 | 0x5b
             | 0x64 | 0x6d | 0x7f | 0xcb | 0xd9 | 0xdd | 0xed | 0xfd => (),
@@ -775,7 +773,7 @@ impl<'a> Cpu8080<'a> {
             0xe6 => self.ani()?,
             0xe7 => self.rst(4)?,
             0xe8 => self.ret_on_parity(self.conditon_codes.is_parity_set())?,
-            0xe9 => self.pc = construct_address((self.reg_l, self.reg_h)) - 1,
+            0xe9 => self.pc = construct_address((self.reg_l, self.reg_h)),
             0xea => self.jump_on_parity(self.conditon_codes.is_parity_set())?,
             0xeb => self.xchg(),
             0xec => self.call_on_parity(self.conditon_codes.is_parity_set())?,
@@ -797,7 +795,6 @@ impl<'a> Cpu8080<'a> {
             0xfe => self.cpi()?,
             0xff => self.rst(7)?,
         }
-        self.pc += 1;
         // execute instructions as if 2Mhz
         let time_spent = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -903,17 +900,15 @@ impl<'a> Cpu8080<'a> {
         self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
         self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
         self.sp -= 2;
-        let old_pc = self.pc;
-        self.pc = construct_address(self.load_d16_operand()?) - 1;
+        let old_pc = self.pc - 1;
+        self.pc = construct_address(self.load_d16_operand()?);
         println!(
             "call into address: {:#06x} from {:#06x}, sp = {:#06x}",
-            self.pc + 1,
-            old_pc,
-            self.sp
+            self.pc, old_pc, self.sp
         );
 
         #[cfg(feature = "bdos")]
-        self.call_bdos(self.pc + 1)?;
+        self.call_bdos(self.pc)?;
 
         Ok(())
     }
@@ -946,12 +941,11 @@ impl<'a> Cpu8080<'a> {
                 self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
                 self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
                 self.sp -= 2;
-                let old_pc = self.pc + 1;
-                self.pc = rst_no as u16 * 8 - 1;
+                let old_pc = self.pc;
+                self.pc = rst_no as u16 * 8;
                 println!(
                     "Interrupted into address: {:#06x} from {:#06x}",
-                    self.pc + 1,
-                    old_pc
+                    self.pc, old_pc
                 );
             }
             _ => panic!("unsupported IRQ {rst_no}"),
@@ -1006,24 +1000,20 @@ impl<'a> Cpu8080<'a> {
         let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
         self.pc = construct_address((addr_lo, addr_hi));
         self.sp += 2;
-        println!(
-            "Return to address: {:#06x}, sp = {:#06x}",
-            self.pc + 1,
-            self.sp
-        );
+        println!("Return to address: {:#06x}, sp = {:#06x}", self.pc, self.sp);
         Ok(())
     }
 
     /// get operand parts in (lo, hi)
     fn load_d16_operand(&self) -> Result<(u8, u8)> {
         Ok((
+            self.load_byte_from_memory((self.pc).into())?,
             self.load_byte_from_memory((self.pc + 1).into())?,
-            self.load_byte_from_memory((self.pc + 2).into())?,
         ))
     }
 
     fn load_d8_operand(&mut self) -> Result<u8> {
-        let value = self.load_byte_from_memory((self.pc + 1).into())?;
+        let value = self.load_byte_from_memory((self.pc).into())?;
         self.pc += 1;
         Ok(value)
     }
@@ -1036,9 +1026,9 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn jmp(&mut self) -> Result<()> {
-        let old_pc = self.pc;
-        self.pc = construct_address(self.load_d16_operand()?) - 1;
-        println!("Jump from {:#06x} to address: {:#06x}", old_pc, self.pc + 1);
+        let old_pc = self.pc - 1;
+        self.pc = construct_address(self.load_d16_operand()?);
+        println!("Jump from {:#06x} to address: {:#06x}", old_pc, self.pc);
         println!(
             "Accumulator = {:#06x} condition_code: {}",
             self.reg_a, self.conditon_codes
