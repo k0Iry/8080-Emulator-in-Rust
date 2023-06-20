@@ -50,3 +50,5 @@ struct Cpu8080 *new_cpu_instance(const char *rom_path,
  * This function should be safe
  */
 void run(struct Cpu8080 *cpu);
+
+void send_interrupt(uint8_t interrupt);

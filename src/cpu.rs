@@ -1,12 +1,15 @@
-use core::{panic, time};
+use core::panic;
 use std::{
     mem,
     ops::{Deref, DerefMut},
+    sync::{mpsc::Sender, Mutex, OnceLock},
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use std::sync::mpsc::channel;
+
+pub static SENDER: OnceLock<Mutex<Sender<u8>>> = OnceLock::new();
 
 use crate::{
     condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
@@ -521,16 +524,7 @@ impl<'a> Cpu8080<'a> {
 
     pub fn run(&mut self) -> Result<()> {
         let (send, recv) = channel();
-        // simulating 60Hz, a dedicated thread for timer interrupts
-        // each time, we generate an interrupt for updating the vram
-        thread::spawn(move || {
-            let mut interrupt = 1;
-            loop {
-                thread::sleep(time::Duration::from_secs_f64(1.0f64 / 60.0));
-                send.send(interrupt).unwrap();
-                interrupt = if interrupt == 1 { 2 } else { 1 }
-            }
-        });
+        SENDER.set(Mutex::new(send)).unwrap();
         while self.pc < self.rom.len() as u16 {
             self.execute()?;
             if let Ok(irq_no) = recv.try_recv() {

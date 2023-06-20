@@ -11,6 +11,7 @@ use std::{
     str::FromStr,
 };
 
+use cpu::SENDER;
 pub use errors::{EmulatorErrors, InvalidFile, MemoryOutOfBounds};
 
 pub type Result<T> = std::result::Result<T, EmulatorErrors>;
@@ -56,4 +57,15 @@ pub unsafe extern "C" fn new_cpu_instance(
 pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
     let cpu = unsafe { &mut Box::from_raw(cpu) };
     cpu.run().unwrap();
+}
+
+#[no_mangle]
+pub extern "C" fn send_interrupt(interrupt: u8) {
+    SENDER
+        .get()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .send(interrupt)
+        .unwrap()
 }
