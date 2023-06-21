@@ -3,9 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef struct Vec_u8 Vec_u8;
-
-typedef uint8_t ConditionCodes;
+typedef struct Cpu8080 Cpu8080;
 
 typedef struct IoCallbacks {
   /**
@@ -18,23 +16,6 @@ typedef struct IoCallbacks {
    */
   void (*output)(uint8_t port, uint8_t value);
 } IoCallbacks;
-
-typedef struct Cpu8080 {
-  struct Vec_u8 *ram;
-  const struct Vec_u8 *rom;
-  uint16_t sp;
-  uint16_t pc;
-  uint8_t reg_a;
-  uint8_t reg_b;
-  uint8_t reg_c;
-  uint8_t reg_d;
-  uint8_t reg_e;
-  uint8_t reg_h;
-  uint8_t reg_l;
-  ConditionCodes conditon_codes;
-  bool interrupt_enabled;
-  struct IoCallbacks callbacks;
-} Cpu8080;
 
 /**
  * # Safety

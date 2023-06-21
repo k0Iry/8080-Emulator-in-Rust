@@ -17,8 +17,8 @@ use crate::{
 
 #[repr(C)]
 pub struct Cpu8080<'a> {
-    ram: &'a mut Vec<u8>,
-    rom: &'a Vec<u8>,
+    ram: &'a mut [u8],
+    rom: &'a [u8],
     sp: u16,
     pc: u16,
     reg_a: u8,
@@ -162,7 +162,7 @@ macro_rules! push_to_reg_pair {
 }
 
 impl<'a> Cpu8080<'a> {
-    pub fn new(rom: &'a Vec<u8>, ram: &'a mut Vec<u8>, callbacks: IoCallbacks) -> Self {
+    pub fn new(rom: &'a [u8], ram: &'a mut [u8], callbacks: IoCallbacks) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -942,10 +942,7 @@ impl<'a> Cpu8080<'a> {
                 self.sp -= 2;
                 let old_pc = self.pc;
                 self.pc = rst_no as u16 * 8;
-                println!(
-                    "Interrupted to {:#06x} from {:#06x}",
-                    self.pc, old_pc
-                );
+                println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
             }
             _ => panic!("unsupported IRQ {rst_no}"),
         }

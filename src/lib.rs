@@ -35,27 +35,29 @@ pub struct IoCallbacks {
 /// This function should be called with valid rom path
 /// and the RAM will be allocated on the fly
 #[no_mangle]
-pub unsafe extern "C" fn new_cpu_instance(
+pub unsafe extern "C" fn new_cpu_instance<'a>(
     rom_path: *const c_char,
     ram_size: usize,
     callbacks: IoCallbacks,
-) -> *mut Cpu8080<'static> {
-    let rom_path = unsafe { CStr::from_ptr(rom_path) };
+) -> *mut Cpu8080<'a> {
+    let rom_path = CStr::from_ptr(rom_path);
     let rom_path = PathBuf::from_str(rom_path.to_str().unwrap()).unwrap();
-    let bytes = BufReader::new(File::open(rom_path).unwrap())
+    let rom = BufReader::new(File::open(rom_path).unwrap())
         .bytes()
         .collect::<std::result::Result<Vec<u8>, std::io::Error>>()
         .unwrap();
-    let rom = &*Box::leak(Box::new(bytes));
-    let ram = Box::leak(Box::new(vec![0; ram_size]));
-    Box::into_raw(Box::new(Cpu8080::new(rom, ram, callbacks)))
+    Box::into_raw(Box::new(Cpu8080::new(
+        &*rom.leak(),
+        vec![0; ram_size].leak(),
+        callbacks,
+    )))
 }
 
 /// # Safety
 /// This function should be safe
 #[no_mangle]
 pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
-    let cpu = unsafe { &mut Box::from_raw(cpu) };
+    let cpu = &mut Box::from_raw(cpu);
     cpu.run().unwrap();
 }
 
