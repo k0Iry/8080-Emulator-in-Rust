@@ -51,4 +51,10 @@ struct Cpu8080 *new_cpu_instance(const char *rom_path,
  */
 void run(struct Cpu8080 *cpu);
 
+/**
+ * It is crucial that we don't borrow our CPU instance
+ * since this function will be called from FFI thread.
+ * (e.g. threads spawned by Swift language where we
+ * cannot enforce any ownership mechanism)
+ */
 void send_interrupt(uint8_t interrupt);

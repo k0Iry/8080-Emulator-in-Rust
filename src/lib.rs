@@ -11,7 +11,7 @@ use std::{
     str::FromStr,
 };
 
-use cpu::SENDER;
+use cpu::INTERRUPT_SENDER;
 pub use errors::{EmulatorErrors, InvalidFile, MemoryOutOfBounds};
 
 pub type Result<T> = std::result::Result<T, EmulatorErrors>;
@@ -59,9 +59,13 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
     cpu.run().unwrap();
 }
 
+/// It is crucial that we don't borrow our CPU instance
+/// since this function will be called from FFI thread.
+/// (e.g. threads spawned by Swift language where we
+/// cannot enforce any ownership mechanism)
 #[no_mangle]
 pub extern "C" fn send_interrupt(interrupt: u8) {
-    SENDER
+    INTERRUPT_SENDER
         .get()
         .unwrap()
         .lock()

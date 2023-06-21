@@ -14,10 +14,10 @@ doctest = false
 name = "cpudiag"
 test = false
 doctest = false
-required-features = ["bdos"]
+required-features = ["bdos_mock"]
 
 [features]
-bdos = []
+bdos_mock = []
 
 [lib]
 doctest = false
