@@ -2,13 +2,17 @@ use core::panic;
 use std::{
     mem,
     ops::{Deref, DerefMut},
-    sync::{mpsc::Sender, Mutex, OnceLock},
+    sync::{
+        mpsc::{Receiver, Sender},
+        Mutex, OnceLock,
+    },
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use std::sync::mpsc::channel;
 
+/// shared with consumer for delivering interrupts to our CPU
 pub static INTERRUPT_SENDER: OnceLock<Mutex<Sender<u8>>> = OnceLock::new();
 
 use crate::{
@@ -30,7 +34,8 @@ pub struct Cpu8080<'a> {
     reg_l: u8,
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
-    callbacks: IoCallbacks,
+    io_callbacks: IoCallbacks,
+    interrupt_receiver: Receiver<u8>,
 }
 
 macro_rules! generate_move_from_mem {
@@ -162,7 +167,9 @@ macro_rules! push_to_reg_pair {
 }
 
 impl<'a> Cpu8080<'a> {
-    pub fn new(rom: &'a [u8], ram: &'a mut [u8], callbacks: IoCallbacks) -> Self {
+    pub fn new(rom: &'a [u8], ram: &'a mut [u8], io_callbacks: IoCallbacks) -> Self {
+        let (sender, interrupt_receiver) = channel();
+        INTERRUPT_SENDER.set(Mutex::new(sender)).unwrap();
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -177,7 +184,8 @@ impl<'a> Cpu8080<'a> {
             ram,
             conditon_codes: ConditionCodes::default(),
             interrupt_enabled: false,
-            callbacks,
+            io_callbacks,
+            interrupt_receiver,
         }
     }
 
@@ -522,11 +530,9 @@ impl<'a> Cpu8080<'a> {
     ];
 
     pub fn run(&mut self) -> Result<()> {
-        let (send, recv) = channel();
-        INTERRUPT_SENDER.set(Mutex::new(send)).unwrap();
         while self.pc < self.rom.len() as u16 {
             self.execute()?;
-            if let Ok(irq_no) = recv.try_recv() {
+            if let Ok(irq_no) = self.interrupt_receiver.try_recv() {
                 self.rst(irq_no)?;
             }
         }
@@ -915,8 +921,9 @@ impl<'a> Cpu8080<'a> {
 
     #[cfg(feature = "bdos_mock")]
     fn call_bdos(&self, pc: u16) -> Result<()> {
-        if pc == 0x5 || pc == 0 {
+        if pc == 0x5 {
             let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
+            assert_eq!(msg_addr, 0x0178);
             let msg: Vec<u8> = self
                 .rom
                 .iter()
@@ -952,13 +959,13 @@ impl<'a> Cpu8080<'a> {
 
     fn output(&mut self) -> Result<()> {
         let dev_no = self.load_d8_operand()?;
-        (self.callbacks.output)(dev_no, self.reg_a);
+        (self.io_callbacks.output)(dev_no, self.reg_a);
         Ok(())
     }
 
     fn input(&mut self) -> Result<()> {
         let dev_no = self.load_d8_operand()?;
-        self.reg_a = (self.callbacks.input)(dev_no);
+        self.reg_a = (self.io_callbacks.input)(dev_no);
         Ok(())
     }
 
