@@ -530,6 +530,9 @@ impl<'a> Cpu8080<'a> {
     ];
 
     pub fn run(&mut self) -> Result<()> {
+        #[cfg(feature = "bdos_mock")]
+        self.reset_pc();
+
         while self.pc < self.rom.len() as u16 {
             self.execute()?;
             if let Ok(irq_no) = self.interrupt_receiver.try_recv() {
@@ -539,12 +542,26 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
+    #[cfg(feature = "bdos_mock")]
+    fn reset_pc(&mut self) {
+        self.pc = 0x100
+    }
+
     fn execute(&mut self) -> Result<()> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_micros();
         let opcode = self.load_byte_from_memory(self.pc.into())?;
+        #[cfg(feature = "bdos_mock")]
+        if self.pc == 5 {
+            self.call_bdos()?;
+            self.pc -= 1;
+        } else if self.pc == 0 {
+            println!("RE-ENTRY TO CP/M WARM BOOT, exiting...");
+            std::process::exit(0)
+        }
+
         self.pc += 1;
         match opcode {
             0x00 | 0x08 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0x40 | 0x49 | 0x52 | 0x5b
@@ -913,27 +930,22 @@ impl<'a> Cpu8080<'a> {
             self.pc, old_pc, self.sp
         );
 
-        #[cfg(feature = "bdos_mock")]
-        self.call_bdos(self.pc)?;
-
         Ok(())
     }
 
     #[cfg(feature = "bdos_mock")]
-    fn call_bdos(&self, pc: u16) -> Result<()> {
-        if pc == 0x5 {
-            let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
-            assert_eq!(msg_addr, 0x0178);
-            let msg: Vec<u8> = self
-                .rom
-                .iter()
-                .skip(msg_addr)
-                .take_while(|&&c| c as char != '$')
-                .map(|c| c.to_owned())
-                .collect();
-            println!("{}", String::from_utf8_lossy(&msg));
-            std::process::exit(0)
-        }
+    fn call_bdos(&mut self) -> Result<()> {
+        let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
+        assert_eq!(msg_addr, 0x0178);
+        let msg: Vec<u8> = self
+            .rom
+            .iter()
+            .skip(msg_addr)
+            .take_while(|&&c| c as char != '$')
+            .map(|c| c.to_owned())
+            .collect();
+        println!("{}", String::from_utf8_lossy(&msg));
+        self.ret()?;
         Ok(())
     }
 

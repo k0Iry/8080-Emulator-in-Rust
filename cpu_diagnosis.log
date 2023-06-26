@@ -1,93 +1,48 @@
 executing "cpudiag"....
-Jump from 0x0100 to address: 0x01af
-Accumulator = 0x0000 condition_code: AC = 0, P = 0, Z = 0, S = 0, C = 0
-
-Jump from 0x01b4 to address: 0x01ba
-Accumulator = 0x0000 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x01ba to address: 0x01c0
-Accumulator = 0x0000 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x01c0 to address: 0x01c6
-Accumulator = 0x0000 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x01c6 to address: 0x01cc
-Accumulator = 0x0000 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x01d8 to address: 0x01de
-Accumulator = 0x0000 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x01e0 to address: 0x01e6
-Accumulator = 0x0006 condition_code: AC = 0, P = 1, Z = 0, S = 0, C = 0
-
-Jump from 0x01ec to address: 0x01f2
-Accumulator = 0x0006 condition_code: AC = 0, P = 1, Z = 0, S = 0, C = 0
-
-Jump from 0x01f4 to address: 0x01fa
-Accumulator = 0x0076 condition_code: AC = 0, P = 0, Z = 0, S = 0, C = 0
-
-Jump from 0x0200 to address: 0x0206
-Accumulator = 0x0076 condition_code: AC = 0, P = 0, Z = 0, S = 0, C = 0
-
-Jump from 0x0208 to address: 0x020e
-Accumulator = 0x00f7 condition_code: AC = 0, P = 0, Z = 0, S = 1, C = 0
-
-Jump from 0x0214 to address: 0x021a
-Accumulator = 0x00f7 condition_code: AC = 0, P = 0, Z = 0, S = 1, C = 0
-
-Jump from 0x021c to address: 0x0222
-Accumulator = 0x00f5 condition_code: AC = 1, P = 1, Z = 0, S = 1, C = 1
-
-Jump from 0x0228 to address: 0x022e
-Accumulator = 0x00f5 condition_code: AC = 1, P = 1, Z = 0, S = 1, C = 1
-
-Jump from 0x0243 to address: 0x0249
-Accumulator = 0x00f5 condition_code: AC = 0, P = 1, Z = 0, S = 1, C = 1
-
-Jump from 0x024f to address: 0x0255
-Accumulator = 0x000b condition_code: AC = 1, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x025b to address: 0x0261
-Accumulator = 0x00f0 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x0267 to address: 0x026d
-Accumulator = 0x00f0 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x0271 to address: 0x0277
-Accumulator = 0x0050 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x027b to address: 0x0281
-Accumulator = 0x007a condition_code: AC = 1, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x0285 to address: 0x028b
-Accumulator = 0x0075 condition_code: AC = 1, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x029b to address: 0x02a1
-Accumulator = 0x0000 condition_code: AC = 0, P = 1, Z = 1, S = 0, C = 0
-
-Jump from 0x02b1 to address: 0x02b7
-Accumulator = 0x0089 condition_code: AC = 1, P = 1, Z = 1, S = 0, C = 0
-
-call into address: 0x02c4 from 0x02b9, sp = 0x07a6
-call into address: 0x02d0 from 0x02c7, sp = 0x07a4
-call into address: 0x02dc from 0x02d3, sp = 0x07a2
-call into address: 0x02e8 from 0x02df, sp = 0x07a0
-call into address: 0x02f4 from 0x02eb, sp = 0x079e
-call into address: 0x0300 from 0x02f7, sp = 0x079c
-call into address: 0x030c from 0x0303, sp = 0x079a
-call into address: 0x0318 from 0x030f, sp = 0x0798
-Return to address: 0x0312, sp = 0x079a
-Return to address: 0x0306, sp = 0x079c
-Return to address: 0x02fa, sp = 0x079e
-Return to address: 0x02ee, sp = 0x07a0
-Return to address: 0x02e2, sp = 0x07a2
-Return to address: 0x02d6, sp = 0x07a4
-Return to address: 0x02ca, sp = 0x07a6
-Return to address: 0x02bc, sp = 0x07a8
-Jump from 0x02be to address: 0x0321
-Accumulator = 0x00d9 condition_code: AC = 1, P = 1, Z = 1, S = 0, C = 0
-
-call into address: 0x0146 from 0x06a2, sp = 0x07a6
-call into address: 0x0005 from 0x014a, sp = 0x07a2
-msg addr: 0x0178
+Jump from 0x0100 to 0x01af
+Jump from 0x01b4 to 0x01ba
+Jump from 0x01ba to 0x01c0
+Jump from 0x01c0 to 0x01c6
+Jump from 0x01c6 to 0x01cc
+Jump from 0x01d8 to 0x01de
+Jump from 0x01e0 to 0x01e6
+Jump from 0x01ec to 0x01f2
+Jump from 0x01f4 to 0x01fa
+Jump from 0x0200 to 0x0206
+Jump from 0x0208 to 0x020e
+Jump from 0x0214 to 0x021a
+Jump from 0x021c to 0x0222
+Jump from 0x0228 to 0x022e
+Jump from 0x0243 to 0x0249
+Jump from 0x024f to 0x0255
+Jump from 0x025b to 0x0261
+Jump from 0x0267 to 0x026d
+Jump from 0x0271 to 0x0277
+Jump from 0x027b to 0x0281
+Jump from 0x0285 to 0x028b
+Jump from 0x029b to 0x02a1
+Jump from 0x02b1 to 0x02b7
+call into 0x02c4 from 0x02b9, sp = 0x07a6
+call into 0x02d0 from 0x02c7, sp = 0x07a4
+call into 0x02dc from 0x02d3, sp = 0x07a2
+call into 0x02e8 from 0x02df, sp = 0x07a0
+call into 0x02f4 from 0x02eb, sp = 0x079e
+call into 0x0300 from 0x02f7, sp = 0x079c
+call into 0x030c from 0x0303, sp = 0x079a
+call into 0x0318 from 0x030f, sp = 0x0798
+Return back to 0x0312, sp = 0x079a
+Return back to 0x0306, sp = 0x079c
+Return back to 0x02fa, sp = 0x079e
+Return back to 0x02ee, sp = 0x07a0
+Return back to 0x02e2, sp = 0x07a2
+Return back to 0x02d6, sp = 0x07a4
+Return back to 0x02ca, sp = 0x07a6
+Return back to 0x02bc, sp = 0x07a8
+Jump from 0x02be to 0x0321
+call into 0x0146 from 0x06a2, sp = 0x07a6
+call into 0x0005 from 0x014a, sp = 0x07a2
  CPU IS OPERATIONAL
+Return back to 0x014d, sp = 0x07a4
+Return back to 0x06a5, sp = 0x07a8
+Jump from 0x06a5 to 0x0000
+RE-ENTRY TO CP/M WARM BOOT, exiting...
