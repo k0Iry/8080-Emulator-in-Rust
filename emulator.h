@@ -39,3 +39,9 @@ void run(struct Cpu8080 *cpu);
  * cannot enforce any ownership mechanism)
  */
 void send_interrupt(uint8_t interrupt);
+
+/**
+ * # Safety
+ * This function should be safe for accessing video ram
+ */
+const uint8_t *get_ram(struct Cpu8080 *cpu);

@@ -75,3 +75,11 @@ pub extern "C" fn send_interrupt(interrupt: u8) {
         .send(interrupt)
         .unwrap()
 }
+
+/// # Safety
+/// This function should be safe for accessing video ram
+#[no_mangle]
+pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
+    let cpu = &*cpu;
+    cpu.get_ram().as_ptr()
+}

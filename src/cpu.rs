@@ -542,6 +542,10 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
+    pub fn get_ram(&self) -> &[u8] {
+        self.ram
+    }
+
     #[cfg(feature = "bdos_mock")]
     fn reset_pc(&mut self) {
         self.pc = 0x100
