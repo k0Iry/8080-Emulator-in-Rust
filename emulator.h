@@ -38,7 +38,7 @@ void run(struct Cpu8080 *cpu);
  * (e.g. threads spawned by Swift language where we
  * cannot enforce any ownership mechanism)
  */
-void send_interrupt(uint8_t interrupt);
+void send_interrupt(uint8_t interrupt, bool allow_nested_interrupt);
 
 /**
  * # Safety

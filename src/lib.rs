@@ -66,13 +66,13 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
 /// (e.g. threads spawned by Swift language where we
 /// cannot enforce any ownership mechanism)
 #[no_mangle]
-pub extern "C" fn send_interrupt(interrupt: u8) {
+pub extern "C" fn send_interrupt(interrupt: u8, allow_nested_interrupt: bool) {
     INTERRUPT_SENDER
         .get()
         .unwrap()
         .lock()
         .unwrap()
-        .send(interrupt)
+        .send((interrupt, allow_nested_interrupt))
         .unwrap()
 }
 

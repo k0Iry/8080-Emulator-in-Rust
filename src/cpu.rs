@@ -13,7 +13,7 @@ use std::{
 use std::sync::mpsc::channel;
 
 /// shared with consumer for delivering interrupts to our CPU
-pub static INTERRUPT_SENDER: OnceLock<Mutex<Sender<u8>>> = OnceLock::new();
+pub static INTERRUPT_SENDER: OnceLock<Mutex<Sender<(u8, bool)>>> = OnceLock::new();
 
 use crate::{
     condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
@@ -35,7 +35,7 @@ pub struct Cpu8080<'a> {
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
     io_callbacks: IoCallbacks,
-    interrupt_receiver: Receiver<u8>,
+    interrupt_receiver: Receiver<(u8, bool)>,
 }
 
 macro_rules! generate_move_from_mem {
@@ -535,8 +535,11 @@ impl<'a> Cpu8080<'a> {
 
         while self.pc < self.rom.len() as u16 {
             self.execute()?;
-            if let Ok(irq_no) = self.interrupt_receiver.try_recv() {
-                self.rst(irq_no)?;
+            if let Ok((irq_no, allow_nested_interrupt)) = self.interrupt_receiver.try_recv() {
+                if self.interrupt_enabled {
+                    self.rst(irq_no)?;
+                }
+                self.interrupt_enabled = allow_nested_interrupt
             }
         }
         Ok(())
@@ -927,12 +930,12 @@ impl<'a> Cpu8080<'a> {
         self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
         self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
         self.sp -= 2;
-        let old_pc = self.pc - 1;
+        // let old_pc = self.pc - 1;
         self.pc = construct_address(self.load_d16_operand()?);
-        println!(
-            "call into {:#06x} from {:#06x}, sp = {:#06x}",
-            self.pc, old_pc, self.sp
-        );
+        // println!(
+        //     "call into {:#06x} from {:#06x}, sp = {:#06x}",
+        //     self.pc, old_pc, self.sp
+        // );
 
         Ok(())
     }
@@ -954,22 +957,18 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn rst(&mut self, rst_no: u8) -> Result<()> {
-        if !self.interrupt_enabled {
-            return Ok(());
-        }
         match rst_no {
             1 | 2 | 7 => {
                 let pc_in_bytes = self.pc.to_be_bytes();
                 self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
                 self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
                 self.sp -= 2;
-                let old_pc = self.pc;
+                // let old_pc = self.pc;
                 self.pc = rst_no as u16 * 8;
-                println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
+                // println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
             }
             _ => panic!("unsupported IRQ {rst_no}"),
         }
-        self.interrupt_enabled = false;
         Ok(())
     }
 
@@ -1019,7 +1018,7 @@ impl<'a> Cpu8080<'a> {
         let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
         self.pc = construct_address((addr_lo, addr_hi));
         self.sp += 2;
-        println!("Return back to {:#06x}, sp = {:#06x}", self.pc, self.sp);
+        // println!("Return back to {:#06x}, sp = {:#06x}", self.pc, self.sp);
         Ok(())
     }
 
@@ -1045,9 +1044,9 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn jmp(&mut self) -> Result<()> {
-        let old_pc = self.pc - 1;
+        // let old_pc = self.pc - 1;
         self.pc = construct_address(self.load_d16_operand()?);
-        println!("Jump from {:#06x} to {:#06x}", old_pc, self.pc);
+        // println!("Jump from {:#06x} to {:#06x}", old_pc, self.pc);
         Ok(())
     }
 }
