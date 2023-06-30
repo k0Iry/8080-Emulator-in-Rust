@@ -15,6 +15,9 @@ use std::sync::mpsc::channel;
 /// shared with consumer for delivering interrupts to our CPU
 pub static INTERRUPT_SENDER: OnceLock<Mutex<Sender<(u8, bool)>>> = OnceLock::new();
 
+/// shared with consumer for pause/start the execution
+pub static PAUSE_SENDER: OnceLock<Mutex<Sender<()>>> = OnceLock::new();
+
 use crate::{
     condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
 };
@@ -36,6 +39,7 @@ pub struct Cpu8080<'a> {
     interrupt_enabled: bool,
     io_callbacks: IoCallbacks,
     interrupt_receiver: Receiver<(u8, bool)>,
+    pause_receiver: Receiver<()>,
 }
 
 macro_rules! generate_move_from_mem {
@@ -168,8 +172,10 @@ macro_rules! push_to_reg_pair {
 
 impl<'a> Cpu8080<'a> {
     pub fn new(rom: &'a [u8], ram: &'a mut [u8], io_callbacks: IoCallbacks) -> Self {
-        let (sender, interrupt_receiver) = channel();
-        INTERRUPT_SENDER.set(Mutex::new(sender)).unwrap();
+        let (interrupt_sender, interrupt_receiver) = channel();
+        INTERRUPT_SENDER.set(Mutex::new(interrupt_sender)).unwrap();
+        let (pause_sender, pause_receiver) = channel();
+        PAUSE_SENDER.set(Mutex::new(pause_sender)).unwrap();
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -186,6 +192,7 @@ impl<'a> Cpu8080<'a> {
             interrupt_enabled: false,
             io_callbacks,
             interrupt_receiver,
+            pause_receiver,
         }
     }
 
@@ -531,9 +538,20 @@ impl<'a> Cpu8080<'a> {
 
     pub fn run(&mut self) -> Result<()> {
         #[cfg(feature = "bdos_mock")]
-        self.reset_pc();
+        {
+            self.pc = 0x100
+        }
 
+        #[cfg(not(feature = "bdos_mock"))]
+        let mut pause = true;
         while self.pc < self.rom.len() as u16 {
+            #[cfg(not(feature = "bdos_mock"))]
+            if pause {
+                self.pause_receiver.recv().unwrap();
+                pause = false
+            } else if self.pause_receiver.try_recv().is_ok() {
+                pause = true
+            }
             self.execute()?;
             if let Ok((irq_no, allow_nested_interrupt)) = self.interrupt_receiver.try_recv() {
                 if self.interrupt_enabled {
@@ -547,11 +565,6 @@ impl<'a> Cpu8080<'a> {
 
     pub fn get_ram(&self) -> &[u8] {
         self.ram
-    }
-
-    #[cfg(feature = "bdos_mock")]
-    fn reset_pc(&mut self) {
-        self.pc = 0x100
     }
 
     fn execute(&mut self) -> Result<()> {
@@ -825,13 +838,13 @@ impl<'a> Cpu8080<'a> {
             0xfe => self.cpi()?,
             0xff => self.rst(7)?,
         }
-        // execute instructions as if 2Mhz
+        // execute instructions as if 2Mhz => 2 circles per microsecond
         let time_spent = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_micros()
             - now;
-        let circle = CLOCK_CYCLES[opcode as usize] as u64;
+        let circle = CLOCK_CYCLES[opcode as usize] as u64 / 2;
         if circle > time_spent as u64 {
             thread::sleep(Duration::from_micros(circle - time_spent as u64));
         }

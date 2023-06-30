@@ -11,7 +11,7 @@ use std::{
     str::FromStr,
 };
 
-use cpu::INTERRUPT_SENDER;
+use cpu::{INTERRUPT_SENDER, PAUSE_SENDER};
 pub use errors::{EmulatorErrors, InvalidFile, MemoryOutOfBounds};
 
 pub type Result<T> = std::result::Result<T, EmulatorErrors>;
@@ -73,6 +73,17 @@ pub extern "C" fn send_interrupt(interrupt: u8, allow_nested_interrupt: bool) {
         .lock()
         .unwrap()
         .send((interrupt, allow_nested_interrupt))
+        .unwrap()
+}
+
+#[no_mangle]
+pub extern "C" fn pause_start_execution() {
+    PAUSE_SENDER
+        .get()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .send(())
         .unwrap()
 }
 
