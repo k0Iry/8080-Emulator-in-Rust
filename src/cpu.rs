@@ -541,7 +541,14 @@ impl<'a> Cpu8080<'a> {
         {
             self.pc = 0x100
         }
-
+        // 2Mhz => 2 circles per microsecond
+        // if we run as 120Hz, 1 / 120 => 8333 microseconds
+        // we supposed to be able to run 16666 circles
+        let mut start = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros();
+        let mut circles = 0;
         #[cfg(not(feature = "bdos_mock"))]
         let mut pause = true;
         while self.pc < self.rom.len() as u16 {
@@ -552,12 +559,28 @@ impl<'a> Cpu8080<'a> {
             } else if self.pause_receiver.try_recv().is_ok() {
                 pause = true
             }
-            self.execute()?;
+            circles += self.execute()?;
             if let Ok((irq_no, allow_nested_interrupt)) = self.interrupt_receiver.try_recv() {
                 if self.interrupt_enabled {
                     self.rst(irq_no)?;
+                    circles += CLOCK_CYCLES[0xc7 as usize] as u64
                 }
                 self.interrupt_enabled = allow_nested_interrupt
+            }
+            if circles >= 16666 {
+                let time_spent = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_micros()
+                    - start;
+                if time_spent < circles as u128 / 2 {
+                    thread::sleep(Duration::from_micros(circles / 2 - time_spent as u64))
+                }
+                circles = 0;
+                start = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_micros();
             }
         }
         Ok(())
@@ -567,11 +590,7 @@ impl<'a> Cpu8080<'a> {
         self.ram
     }
 
-    fn execute(&mut self) -> Result<()> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros();
+    fn execute(&mut self) -> Result<u64> {
         let opcode = self.load_byte_from_memory(self.pc.into())?;
         #[cfg(feature = "bdos_mock")]
         if self.pc == 5 {
@@ -838,17 +857,7 @@ impl<'a> Cpu8080<'a> {
             0xfe => self.cpi()?,
             0xff => self.rst(7)?,
         }
-        // execute instructions as if 2Mhz => 2 circles per microsecond
-        let time_spent = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros()
-            - now;
-        let circle = CLOCK_CYCLES[opcode as usize] as u64 / 2;
-        if circle > time_spent as u64 {
-            thread::sleep(Duration::from_micros(circle - time_spent as u64));
-        }
-        Ok(())
+        Ok(CLOCK_CYCLES[opcode as usize] as u64)
     }
 
     fn load_stack_pointer_from_operand(&mut self) -> Result<()> {
