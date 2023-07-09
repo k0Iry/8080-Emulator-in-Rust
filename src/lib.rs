@@ -61,6 +61,7 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
     cpu.run().unwrap();
 }
 
+/// Always called from a separated thread!
 /// It is crucial that we don't borrow our CPU instance
 /// since this function will be called from FFI thread.
 /// (e.g. threads spawned by Swift language where we
@@ -76,6 +77,10 @@ pub extern "C" fn send_interrupt(interrupt: u8, allow_nested_interrupt: bool) {
         .unwrap()
 }
 
+/// Channel for the control of execution, we can either start
+/// or pause the execution of instructions, again we
+/// shall not borrow the CPU instance same as `send_interrupt`
+/// since this function should always be called from a separated thread
 #[no_mangle]
 pub extern "C" fn pause_start_execution() {
     PAUSE_SENDER
