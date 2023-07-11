@@ -1016,7 +1016,7 @@ impl<'a> Cpu8080<'a> {
             }
             self.reg_a = aux_carry as u8;
         }
-        if (self.reg_a >> 4) > 0x9 || self.conditon_codes.is_carry_set() {
+        if (self.reg_a & 0xf0) > 0x90 || self.conditon_codes.is_carry_set() {
             let result = self.reg_a as u16 + (6u8 << 4) as u16;
             if result > u8::MAX.into() {
                 self.conditon_codes.set_carry()
