@@ -563,7 +563,7 @@ impl<'a> Cpu8080<'a> {
             if let Ok((irq_no, allow_nested_interrupt)) = self.interrupt_receiver.try_recv() {
                 if self.interrupt_enabled {
                     self.rst(irq_no)?;
-                    circles += CLOCK_CYCLES[0xc7 as usize] as u64
+                    circles += CLOCK_CYCLES[0xc7_usize] as u64
                 }
                 self.interrupt_enabled = allow_nested_interrupt
             }
