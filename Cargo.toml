@@ -16,6 +16,6 @@ bdos_mock = []
 
 [lib]
 doctest = false
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib", "staticlib"]
 
 [dependencies]

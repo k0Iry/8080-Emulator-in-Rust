@@ -46,7 +46,7 @@ macro_rules! generate_move_from_mem {
     ( $( ($func:ident, $reg:ident) ),* ) => {
         $(
             fn $func(&mut self) -> Result<()> {
-                let mem_addr = construct_address((self.reg_l, self.reg_h));
+                let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
                 Ok(self.$reg = self.load_byte_from_memory(mem_addr.into())?)
             }
         )*
@@ -57,7 +57,7 @@ macro_rules! generate_store_reg_to_ram {
     ( $( ($func:ident, $reg:ident) ),* ) => {
         $(
             fn $func(&mut self) -> Result<()> {
-                let mem_addr = construct_address((self.reg_l, self.reg_h));
+                let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
                 self.store_to_ram(mem_addr.into(), self.$reg)
             }
         )*
@@ -111,7 +111,7 @@ macro_rules! generate_load_data_into_reg_pair {
     ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
         $(
             fn $func(&mut self) -> Result<()> {
-                (self.$reg_lo, self.$reg_hi) = self.load_d16_operand()?;
+                [self.$reg_lo, self.$reg_hi] = self.load_d16_operand()?;
                 self.pc += 2;
                 Ok(())
             }
@@ -123,7 +123,7 @@ macro_rules! generate_inc_dec_reg_pair {
     ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident, $value:expr) ),* ) => {
         $(
             fn $func(&mut self) {
-                let pair_value = construct_address((self.$reg_lo, self.$reg_hi)) as u32;
+                let pair_value = u16::from_le_bytes([self.$reg_lo, self.$reg_hi]) as u32;
                 let value = $value as u32;
                 let big_endian_bytes = (pair_value + value).to_be_bytes();
                 self.$reg_hi = big_endian_bytes[2];
@@ -282,7 +282,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn dad(&mut self, value: u16) {
-        let hl = construct_address((self.reg_l, self.reg_h)) as u32;
+        let hl = u16::from_le_bytes([self.reg_l, self.reg_h]) as u32;
         let hl = hl + value as u32;
         let be_bytes = (hl as u16).to_be_bytes();
         (self.reg_l, self.reg_h) = (be_bytes[1], be_bytes[0]);
@@ -348,28 +348,28 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn add_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.add(value);
         Ok(())
     }
 
     fn sub_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.sub(value);
         Ok(())
     }
 
     fn adc_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.adc(value);
         Ok(())
     }
 
     fn sbb_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.sbb(value);
         Ok(())
@@ -399,7 +399,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn ana_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.and(value);
         Ok(())
@@ -417,7 +417,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn xra_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.xor(value);
         Ok(())
@@ -443,7 +443,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn ora_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.or(value);
         Ok(())
@@ -455,7 +455,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn cmp_m(&mut self) -> Result<()> {
-        let mem_addr = construct_address((self.reg_l, self.reg_h));
+        let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
         let value = self.load_byte_from_memory(mem_addr.into())?;
         self.cmp(value);
         Ok(())
@@ -494,14 +494,14 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn inr_m(&mut self) -> Result<()> {
-        let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
+        let addr: usize = u16::from_le_bytes([self.reg_l, self.reg_h]).into();
         let value = self.set_condition_bits(self.load_byte_from_memory(addr)?.into(), 1) as u8;
         self.store_to_ram(addr, value)?;
         Ok(())
     }
 
     fn dcr_m(&mut self) -> Result<()> {
-        let addr: usize = construct_address((self.reg_l, self.reg_h)).into();
+        let addr: usize = u16::from_le_bytes([self.reg_l, self.reg_h]).into();
         let value = self.set_condition_bits(
             self.load_byte_from_memory(addr)?.into(),
             1u8.wrapping_neg().into(),
@@ -607,7 +607,7 @@ impl<'a> Cpu8080<'a> {
             | 0x64 | 0x6d | 0x7f | 0xcb | 0xd9 | 0xdd | 0xed | 0xfd => (),
             0x01 => self.load_data_into_reg_pair_b()?,
             0x02 => self.store_to_ram(
-                construct_address((self.reg_c, self.reg_b)).into(),
+                u16::from_le_bytes([self.reg_c, self.reg_b]).into(),
                 self.reg_a,
             )?,
             0x03 => self.inx_b(),
@@ -615,10 +615,10 @@ impl<'a> Cpu8080<'a> {
             0x05 => self.dcr_b(),
             0x06 => self.reg_b = self.load_d8_operand()?,
             0x07 => self.rlc(),
-            0x09 => self.dad(construct_address((self.reg_c, self.reg_b))),
+            0x09 => self.dad(u16::from_le_bytes([self.reg_c, self.reg_b])),
             0x0a => {
                 self.reg_a =
-                    self.load_byte_from_memory(construct_address((self.reg_c, self.reg_b)).into())?
+                    self.load_byte_from_memory(u16::from_le_bytes([self.reg_c, self.reg_b]).into())?
             }
             0x0b => self.dcx_b(),
             0x0c => self.inr_c(),
@@ -627,7 +627,7 @@ impl<'a> Cpu8080<'a> {
             0x0f => self.rrc(),
             0x11 => self.load_data_into_reg_pair_d()?,
             0x12 => self.store_to_ram(
-                construct_address((self.reg_e, self.reg_d)).into(),
+                u16::from_le_bytes([self.reg_e, self.reg_d]).into(),
                 self.reg_a,
             )?,
             0x13 => self.inx_d(),
@@ -635,10 +635,10 @@ impl<'a> Cpu8080<'a> {
             0x15 => self.dcr_d(),
             0x16 => self.reg_d = self.load_d8_operand()?,
             0x17 => self.ral(),
-            0x19 => self.dad(construct_address((self.reg_e, self.reg_d))),
+            0x19 => self.dad(u16::from_le_bytes([self.reg_e, self.reg_d])),
             0x1a => {
                 self.reg_a =
-                    self.load_byte_from_memory(construct_address((self.reg_e, self.reg_d)).into())?
+                    self.load_byte_from_memory(u16::from_le_bytes([self.reg_e, self.reg_d]).into())?
             }
             0x1b => self.dcx_d(),
             0x1c => self.inr_e(),
@@ -652,7 +652,7 @@ impl<'a> Cpu8080<'a> {
             0x25 => self.dcr_h(),
             0x26 => self.reg_h = self.load_d8_operand()?,
             0x27 => self.daa(),
-            0x29 => self.dad(construct_address((self.reg_l, self.reg_h))),
+            0x29 => self.dad(u16::from_le_bytes([self.reg_l, self.reg_h])),
             0x2a => self.lhld()?,
             0x2b => self.dcx_h(),
             0x2c => self.inr_l(),
@@ -666,7 +666,7 @@ impl<'a> Cpu8080<'a> {
             0x35 => self.dcr_m()?,
             0x36 => {
                 let imm = self.load_d8_operand()?;
-                self.store_to_ram(construct_address((self.reg_l, self.reg_h)).into(), imm)?
+                self.store_to_ram(u16::from_le_bytes([self.reg_l, self.reg_h]).into(), imm)?
             }
             0x37 => self.conditon_codes.set_carry(),
             0x39 => self.dad(self.sp),
@@ -835,7 +835,7 @@ impl<'a> Cpu8080<'a> {
             0xe6 => self.ani()?,
             0xe7 => self.rst(4)?,
             0xe8 => self.ret_on_parity(self.conditon_codes.is_parity_set())?,
-            0xe9 => self.pc = construct_address((self.reg_l, self.reg_h)),
+            0xe9 => self.pc = u16::from_le_bytes([self.reg_l, self.reg_h]),
             0xea => self.jump_on_parity(self.conditon_codes.is_parity_set())?,
             0xeb => self.xchg(),
             0xec => self.call_on_parity(self.conditon_codes.is_parity_set())?,
@@ -850,7 +850,7 @@ impl<'a> Cpu8080<'a> {
             0xf6 => self.ori()?,
             0xf7 => self.rst(6)?,
             0xf8 => self.ret_on_sign(self.conditon_codes.is_sign_set())?,
-            0xf9 => self.sp = construct_address((self.reg_l, self.reg_h)),
+            0xf9 => self.sp = u16::from_le_bytes([self.reg_l, self.reg_h]),
             0xfa => self.jump_on_sign(self.conditon_codes.is_sign_set())?,
             0xfb => self.interrupt_enabled = true,
             0xfc => self.call_on_sign(self.conditon_codes.is_sign_set())?,
@@ -861,7 +861,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn load_stack_pointer_from_operand(&mut self) -> Result<()> {
-        self.sp = construct_address(self.load_d16_operand()?);
+        self.sp = u16::from_le_bytes(self.load_d16_operand()?);
         self.pc += 2;
         Ok(())
     }
@@ -874,7 +874,7 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn shld(&mut self) -> Result<()> {
-        let address = construct_address(self.load_d16_operand()?);
+        let address = u16::from_le_bytes(self.load_d16_operand()?);
         self.store_to_ram(address.into(), self.reg_l)?;
         self.store_to_ram((address + 1).into(), self.reg_h)?;
         self.pc += 2;
@@ -882,7 +882,7 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn lhld(&mut self) -> Result<()> {
-        let address = construct_address(self.load_d16_operand()?);
+        let address = u16::from_le_bytes(self.load_d16_operand()?);
         let lo = self.load_byte_from_memory(address.into())?;
         let hi = self.load_byte_from_memory((address + 1).into())?;
         (self.reg_l, self.reg_h) = (lo, hi);
@@ -907,14 +907,14 @@ impl<'a> Cpu8080<'a> {
     }
 
     fn sta(&mut self) -> Result<()> {
-        let address = construct_address(self.load_d16_operand()?);
+        let address = u16::from_le_bytes(self.load_d16_operand()?);
         self.store_to_ram(address.into(), self.reg_a)?;
         self.pc += 2;
         Ok(())
     }
 
     fn lda(&mut self) -> Result<()> {
-        let address = construct_address(self.load_d16_operand()?);
+        let address = u16::from_le_bytes(self.load_d16_operand()?);
         self.reg_a = self.load_byte_from_memory(address.into())?;
         self.pc += 2;
         Ok(())
@@ -952,19 +952,21 @@ impl<'a> Cpu8080<'a> {
         self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
         self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
         self.sp -= 2;
-        // let old_pc = self.pc - 1;
-        self.pc = construct_address(self.load_d16_operand()?);
-        // println!(
-        //     "call into {:#06x} from {:#06x}, sp = {:#06x}",
-        //     self.pc, old_pc, self.sp
-        // );
+        #[cfg(feature = "bdos_mock")]
+        let old_pc = self.pc - 1;
+        self.pc = u16::from_le_bytes(self.load_d16_operand()?);
+        #[cfg(feature = "bdos_mock")]
+        println!(
+            "call into {:#06x} from {:#06x}, sp = {:#06x}",
+            self.pc, old_pc, self.sp
+        );
 
         Ok(())
     }
 
     #[cfg(feature = "bdos_mock")]
     fn call_bdos(&mut self) -> Result<()> {
-        let msg_addr = (construct_address((self.reg_e, self.reg_d)) + 3) as usize; // skipping 0CH,0DH,0AH
+        let msg_addr = (u16::from_le_bytes([self.reg_e, self.reg_d]) + 3) as usize; // skipping 0CH,0DH,0AH
         assert_eq!(msg_addr, 0x0178);
         let msg: Vec<u8> = self
             .rom
@@ -980,14 +982,16 @@ impl<'a> Cpu8080<'a> {
 
     fn rst(&mut self, rst_no: u8) -> Result<()> {
         match rst_no {
-            1 | 2 | 7 => {
+            1..=7 => {
                 let pc_in_bytes = self.pc.to_be_bytes();
                 self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
                 self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
                 self.sp -= 2;
-                // let old_pc = self.pc;
+                #[cfg(feature = "bdos_mock")]
+                let old_pc = self.pc;
                 self.pc = rst_no as u16 * 8;
-                // println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
+                #[cfg(feature = "bdos_mock")]
+                println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
             }
             _ => panic!("unsupported IRQ {rst_no}"),
         }
@@ -1038,18 +1042,19 @@ impl<'a> Cpu8080<'a> {
     fn ret(&mut self) -> Result<()> {
         let addr_lo = self.load_byte_from_memory(self.sp.into())?;
         let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
-        self.pc = construct_address((addr_lo, addr_hi));
+        self.pc = u16::from_le_bytes([addr_lo, addr_hi]);
         self.sp += 2;
-        // println!("Return back to {:#06x}, sp = {:#06x}", self.pc, self.sp);
+        #[cfg(feature = "bdos_mock")]
+        println!("Return back to {:#06x}, sp = {:#06x}", self.pc, self.sp);
         Ok(())
     }
 
     /// get operand parts in (lo, hi)
-    fn load_d16_operand(&self) -> Result<(u8, u8)> {
-        Ok((
+    fn load_d16_operand(&self) -> Result<[u8; 2]> {
+        Ok([
             self.load_byte_from_memory((self.pc).into())?,
             self.load_byte_from_memory((self.pc + 1).into())?,
-        ))
+        ])
     }
 
     fn load_d8_operand(&mut self) -> Result<u8> {
@@ -1066,16 +1071,13 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn jmp(&mut self) -> Result<()> {
-        // let old_pc = self.pc - 1;
-        self.pc = construct_address(self.load_d16_operand()?);
-        // println!("Jump from {:#06x} to {:#06x}", old_pc, self.pc);
+        #[cfg(feature = "bdos_mock")]
+        let old_pc = self.pc - 1;
+        self.pc = u16::from_le_bytes(self.load_d16_operand()?);
+        #[cfg(feature = "bdos_mock")]
+        println!("Jump from {:#06x} to {:#06x}", old_pc, self.pc);
         Ok(())
     }
-}
-
-#[inline(always)]
-fn construct_address((low_addr, high_addr): (u8, u8)) -> u16 {
-    (high_addr as u16) << 8 | (low_addr as u16)
 }
 
 #[cfg(test)]
@@ -1110,7 +1112,7 @@ mod tests {
         cpu.reg_h = 0xa1;
         cpu.reg_l = 0x7b;
         cpu.conditon_codes.reset_carry();
-        cpu.dad(construct_address((cpu.reg_c, cpu.reg_b)));
+        cpu.dad(u16::from_le_bytes([cpu.reg_c, cpu.reg_b]));
         assert_eq!(cpu.reg_h, 0xd5);
         assert_eq!(cpu.reg_l, 0x1a);
         assert!(!cpu.conditon_codes.is_carry_set());
