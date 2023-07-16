@@ -1,0 +1,24 @@
+name: 8080-cpu-emulator-rust-build
+
+on:
+  push:
+    branches: [ "8080-emulator" ]
+  pull_request:
+    branches: [ "8080-emulator" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --lib --release --verbose
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Run cpu diagnosis
+      run: cargo run --features="bdos_mock"
