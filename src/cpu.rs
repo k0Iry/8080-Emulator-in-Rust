@@ -125,9 +125,7 @@ macro_rules! generate_inc_dec_reg_pair {
             fn $func(&mut self) {
                 let pair_value = u16::from_le_bytes([self.$reg_lo, self.$reg_hi]) as u32;
                 let value = $value as u32;
-                let big_endian_bytes = (pair_value + value).to_be_bytes();
-                self.$reg_hi = big_endian_bytes[2];
-                self.$reg_lo = big_endian_bytes[3];
+                [_, _, self.$reg_hi, self.$reg_lo] = (pair_value + value).to_be_bytes();
             }
         )*
     };
@@ -284,8 +282,7 @@ impl<'a> Cpu8080<'a> {
     fn dad(&mut self, value: u16) {
         let hl = u16::from_le_bytes([self.reg_l, self.reg_h]) as u32;
         let hl = hl + value as u32;
-        let be_bytes = (hl as u16).to_be_bytes();
-        (self.reg_l, self.reg_h) = (be_bytes[1], be_bytes[0]);
+        [self.reg_h, self.reg_l] = (hl as u16).to_be_bytes();
         self.set_carry(hl > u16::MAX.into());
     }
 
