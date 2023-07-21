@@ -12,7 +12,7 @@ use std::{
 };
 
 use cpu::{INTERRUPT_SENDER, PAUSE_SENDER};
-pub use errors::{EmulatorErrors, InvalidFile, MemoryOutOfBounds};
+pub use errors::{EmulatorErrors, MemoryOutOfBounds};
 
 pub type Result<T> = std::result::Result<T, EmulatorErrors>;
 

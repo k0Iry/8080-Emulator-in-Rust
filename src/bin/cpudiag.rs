@@ -1,17 +1,15 @@
 use std::{
     fs::File,
     io::{BufReader, Read},
+    path::Path,
 };
 
-use emulator::{Cpu8080, InvalidFile, IoCallbacks, Result};
+use emulator::{Cpu8080, IoCallbacks, Result};
 
 fn main() -> Result<()> {
-    let cpudiag_prog = std::env::current_dir()?.join("roms/cpudiag");
+    let cpudiag_prog = Path::new(env!("CARGO_MANIFEST_DIR")).join("diagnosis_program/cpudiag");
 
-    println!(
-        "executing {:?}....",
-        cpudiag_prog.file_name().ok_or(InvalidFile)?
-    );
+    println!("executing CPU diagnosis...");
     let bytes = BufReader::new(File::open(cpudiag_prog)?).bytes();
     let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
     let mut ram = vec![0; 0x2000];
