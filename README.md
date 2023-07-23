@@ -1,6 +1,6 @@
 Using Rust to implement a full Intel 8080 CPU emulator.
 
-To verify if the emulator works well, run *cpudiag program under path roms/*. I also modified the assembly to avoid the need of writing to ROM.
+To verify if the emulator works well, run *cpudiag program under path diagnosis_program/*. I also modified the assembly to avoid the need of writing to ROM.
 
 This library is intended to be reused on different platforms: macOS, iOS, Android and (if possible) Web.
 
