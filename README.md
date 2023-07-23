@@ -15,3 +15,6 @@ If we take a look at the interfaces in *emulator.h* header file, we can see:
 - Pause/resume the execution, similar to handle interrupts, a mpsc should be used, but with some extra cares:
     - for receiving pause request, we check the request in a non-blocking manner (active state)
     - for receiving resume request, we check the request in a blocking manner (idle state)
+
+## How to use
+To use this library for app development, just build and copy the static library *libemulator.a* and include the *emulator.h* header file in your project.
