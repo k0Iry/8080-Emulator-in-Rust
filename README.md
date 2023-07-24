@@ -18,3 +18,6 @@ If we take a look at the interfaces in *emulator.h* header file, we can see:
 
 ## How to use
 To use this library for app development, just build and copy the static library *libemulator.a* and include the *emulator.h* header file in your project.
+
+## Apps powered by this library
+- [Space Invaders on macOS](https://github.com/k0Iry/SpaceInvaders)
