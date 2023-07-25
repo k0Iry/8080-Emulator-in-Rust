@@ -3,6 +3,8 @@ name: 8080-cpu-emulator-rust-build
 on:
   push:
     branches: [ "8080-emulator" ]
+    tags:
+    - 'v*'
   pull_request:
     branches: [ "8080-emulator" ]
 
@@ -29,17 +31,16 @@ jobs:
     - name: Build for iOS
       run: cargo build --lib --target=aarch64-apple-ios --release --verbose
     - name: Get tag name from ref
-      shell: bash
-      run: echo "::set-output name=tag::${{ github.ref }}"
       id: get_tag
+      run: echo "TAG_NAME=\${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.get_tag.outputs.tag.replace('refs/tags/', '') }}
-        release_name: Release ${{ steps.get_tag.outputs.tag.replace('refs/tags/', '') }}
+        tag_name: ${{ env.TAG_NAME }}
+        release_name: Release ${{ env.TAG_NAME }}
         draft: false
         prerelease: false
     - name: Upload Release Asset
@@ -51,5 +52,3 @@ jobs:
         asset_path: target/x86_64-apple-darwin/release/libi8080emulator.a
         asset_name: libi8080emulator_x86_64_darwin.a
         asset_content_type: application/octet-stream
-      
-  
