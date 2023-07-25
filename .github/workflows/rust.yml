@@ -32,13 +32,13 @@ jobs:
       run: cargo build --lib --target=aarch64-apple-ios --release --verbose
     - name: Zip files
       run: |
-        zip x86_64_darwin.zip target/x86_64-apple-darwin/release/libi8080emulator.a
-        zip aarch64_darwin.zip target/aarch64-apple-darwin/release/libi8080emulator.a
-        zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator.a
+        zip x86_64_darwin.zip target/x86_64-apple-darwin/release/libi8080emulator.a emulator.h
+        zip aarch64_darwin.zip target/aarch64-apple-darwin/release/libi8080emulator.a emulator.h
+        zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator.a emulator.h
     - name: Generate release tag
       id: tag
       run: |
-        echo "::set-output name=release_tag::UserBuild_$(date +"%Y.%m.%d_%H-%M")"
+        echo "::set-output name=release_tag::Build_$(date +"%Y.%m.%d_%H-%M")"
     - name: Upload Release Asset
       uses: softprops/action-gh-release@v1
       env:
