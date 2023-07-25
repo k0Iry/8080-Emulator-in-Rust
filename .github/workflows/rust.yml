@@ -3,6 +3,8 @@ name: 8080-cpu-emulator-rust-build
 on:
   push:
     branches: [ "8080-emulator" ]
+    tags:
+    - 'v*'
   pull_request:
     branches: [ "8080-emulator" ]
 
@@ -20,3 +22,25 @@ jobs:
       run: cargo test --verbose
     - name: Run cpu diagnosis
       run: cargo run --features="bdos_mock"
+    - name: Install targets
+      run: rustup target add aarch64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
+    - name: Build for x86_64 macOS
+      run: cargo build --lib --target=x86_64-apple-darwin --release --verbose
+    - name: Build for Apple Silicon macOS
+      run: cargo build --lib --target=aarch64-apple-darwin --release --verbose
+    - name: Build for iOS
+      run: cargo build --lib --target=aarch64-apple-ios --release --verbose
+    - name: Zip files
+      run: |
+        zip x86_64_darwin.zip target/x86_64-apple-darwin/release/libi8080emulator.a
+        zip aarch64_darwin.zip target/aarch64-apple-darwin/release/libi8080emulator.a
+        zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator.a
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: |
+          ./x86_64_darwin.zip
+          ./aarch64_darwin.zip
+          ./aarch64_ios.zip
