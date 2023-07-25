@@ -38,7 +38,7 @@ jobs:
     - name: Generate release tag
       id: tag
       run: |
-        echo "::set-output name=release_tag::Build_$(date +"%Y.%m.%d_%H-%M")"
+        echo "name=release_tag::Build_$(date +"%Y.%m.%d_%H-%M")" >> $GITHUB_OUTPUT
     - name: Upload Release Asset
       uses: softprops/action-gh-release@v1
       env:
