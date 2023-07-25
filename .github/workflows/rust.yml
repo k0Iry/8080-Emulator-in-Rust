@@ -3,8 +3,6 @@ name: 8080-cpu-emulator-rust-build
 on:
   push:
     branches: [ "8080-emulator" ]
-    tags:
-    - "refs/tags/v*"
   pull_request:
     branches: [ "8080-emulator" ]
 
@@ -22,61 +20,3 @@ jobs:
       run: cargo test --verbose
     - name: Run cpu diagnosis
       run: cargo run --features="bdos_mock"
-    - name: Install targets
-      run: rustup target add aarch64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
-    - name: Build for x86_64 macOS
-      run: cargo build --lib --target=x86_64-apple-darwin --release --verbose
-    - name: Build for Apple Silicon macOS
-      run: cargo build --lib --target=aarch64-apple-darwin --release --verbose
-    - name: Build for iOS
-      run: cargo build --lib --target=aarch64-apple-ios --release --verbose
-    - name: Zip files
-      run: |
-        zip x86_64_darwin.zip target/x86_64-apple-darwin/release/libi8080emulator.a
-        zip aarch64_darwin.zip target/aarch64-apple-darwin/release/libi8080emulator.a
-        zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator.a
-    - name: Get tag name from ref
-      id: get_tag
-      run: |
-          if [[ "${{ github.ref }}" == "refs/tags/"* ]]; then
-            echo "TAG_NAME=${{ github.ref#refs/tags/ }}" >> $GITHUB_ENV
-          else
-            echo "TAG_NAME=${{ github.ref }}" >> $GITHUB_ENV
-          fi
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.TAG_NAME }}
-        release_name: Release ${{ env.TAG_NAME }}
-        draft: false
-        prerelease: false
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./x86_64_darwin.zip
-        asset_name: x86_64_darwin.zip
-        asset_content_type: application/octet-stream
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./aarch64_darwin.zip
-        asset_name: aarch64_darwin.zip
-        asset_content_type: application/octet-stream
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./aarch64_ios.zip
-        asset_name: aarch64_ios.zip
-        asset_content_type: application/octet-stream
