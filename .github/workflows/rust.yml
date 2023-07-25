@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "8080-emulator" ]
     tags:
-    - 'v*'
+    - "v*.*.*"
   pull_request:
     branches: [ "8080-emulator" ]
 
@@ -35,11 +35,16 @@ jobs:
         zip x86_64_darwin.zip target/x86_64-apple-darwin/release/libi8080emulator.a
         zip aarch64_darwin.zip target/aarch64-apple-darwin/release/libi8080emulator.a
         zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator.a
+    - name: Generate release tag
+      id: tag
+      run: |
+        echo "::set-output name=release_tag::UserBuild_$(date +"%Y.%m.%d_%H-%M")"
     - name: Upload Release Asset
       uses: softprops/action-gh-release@v1
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
         files: |
           ./x86_64_darwin.zip
           ./aarch64_darwin.zip
