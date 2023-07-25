@@ -3,8 +3,6 @@ name: 8080-cpu-emulator-rust-build
 on:
   push:
     branches: [ "8080-emulator" ]
-    tags:
-    - 'v*'
   pull_request:
     branches: [ "8080-emulator" ]
 
