@@ -39,10 +39,11 @@ jobs:
       id: get_tag
       run: |
           if [[ "${{ github.ref }}" == "refs/tags/"* ]]; then
-            echo "TAG_NAME=${{ github.ref#refs/tags/ }}" >> $GITHUB_ENV
+            TAG_NAME="${{ github.ref#refs/tags/ }}"
           else
-            echo "TAG_NAME=${{ github.ref }}" >> $GITHUB_ENV
+            TAG_NAME="${{ github.ref }}"
           fi
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
