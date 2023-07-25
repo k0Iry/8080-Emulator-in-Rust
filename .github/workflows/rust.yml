@@ -32,7 +32,7 @@ jobs:
       run: cargo build --lib --target=aarch64-apple-ios --release --verbose
     - name: Get tag name from ref
       id: get_tag
-      run: echo "TAG_NAME=\${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
