@@ -30,14 +30,18 @@ jobs:
       run: cargo build --lib --target=aarch64-apple-darwin --release --verbose
     - name: Build for iOS
       run: cargo build --lib --target=aarch64-apple-ios --release --verbose
+    - name: Get tag name from ref
+      shell: bash
+      run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
+      id: get_tag
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: ${{ steps.get_tag.outputs.tag }}
+        release_name: Release ${{ steps.get_tag.outputs.tag }}
         draft: false
         prerelease: false
     - name: Upload Release Asset
