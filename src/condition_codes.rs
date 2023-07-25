@@ -4,7 +4,7 @@ use std::{
 };
 
 #[repr(transparent)]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct ConditionCodes(u8);
 
 impl Deref for ConditionCodes {

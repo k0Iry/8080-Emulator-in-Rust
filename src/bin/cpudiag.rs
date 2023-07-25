@@ -12,7 +12,7 @@ fn main() -> Result<()> {
     println!("executing CPU diagnosis...");
     let bytes = BufReader::new(File::open(cpudiag_prog)?).bytes();
     let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
-    let mut ram = vec![0; 0x2000];
+    let mut ram = vec![0; 0x200];
     pub extern "C" fn input(port: u8) -> u8 {
         port
     }

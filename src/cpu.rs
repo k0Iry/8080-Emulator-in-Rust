@@ -2,19 +2,21 @@ use core::panic;
 use std::{
     mem,
     ops::{Deref, DerefMut},
-    sync::{
-        mpsc::{Receiver, Sender},
-        Mutex, OnceLock,
-    },
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use std::sync::mpsc::channel;
+#[cfg(not(feature = "bdos_mock"))]
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Mutex, OnceLock,
+};
 
+#[cfg(not(feature = "bdos_mock"))]
 /// shared with consumer for delivering interrupts to our CPU
 pub static INTERRUPT_SENDER: OnceLock<Mutex<Sender<(u8, bool)>>> = OnceLock::new();
 
+#[cfg(not(feature = "bdos_mock"))]
 /// shared with consumer for pause/start the execution
 pub static PAUSE_SENDER: OnceLock<Mutex<Sender<()>>> = OnceLock::new();
 
@@ -22,7 +24,6 @@ use crate::{
     condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
 };
 
-#[repr(C)]
 pub struct Cpu8080<'a> {
     ram: &'a mut [u8],
     rom: &'a [u8],
@@ -38,7 +39,9 @@ pub struct Cpu8080<'a> {
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
     io_callbacks: IoCallbacks,
+    #[cfg(not(feature = "bdos_mock"))]
     interrupt_receiver: Receiver<(u8, bool)>,
+    #[cfg(not(feature = "bdos_mock"))]
     pause_receiver: Receiver<()>,
 }
 
@@ -170,9 +173,13 @@ macro_rules! push_to_reg_pair {
 
 impl<'a> Cpu8080<'a> {
     pub fn new(rom: &'a [u8], ram: &'a mut [u8], io_callbacks: IoCallbacks) -> Self {
+        #[cfg(not(feature = "bdos_mock"))]
         let (interrupt_sender, interrupt_receiver) = channel();
+        #[cfg(not(feature = "bdos_mock"))]
         INTERRUPT_SENDER.set(Mutex::new(interrupt_sender)).unwrap();
+        #[cfg(not(feature = "bdos_mock"))]
         let (pause_sender, pause_receiver) = channel();
+        #[cfg(not(feature = "bdos_mock"))]
         PAUSE_SENDER.set(Mutex::new(pause_sender)).unwrap();
         Cpu8080 {
             reg_a: 0,
@@ -189,7 +196,9 @@ impl<'a> Cpu8080<'a> {
             conditon_codes: ConditionCodes::default(),
             interrupt_enabled: false,
             io_callbacks,
+            #[cfg(not(feature = "bdos_mock"))]
             interrupt_receiver,
+            #[cfg(not(feature = "bdos_mock"))]
             pause_receiver,
         }
     }
@@ -557,6 +566,7 @@ impl<'a> Cpu8080<'a> {
                 pause = true
             }
             circles += self.execute()?;
+            #[cfg(not(feature = "bdos_mock"))]
             if let Ok((irq_no, allow_nested_interrupt)) = self.interrupt_receiver.try_recv() {
                 if self.interrupt_enabled {
                     self.rst(irq_no)?;

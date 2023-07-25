@@ -11,6 +11,7 @@ use std::{
     str::FromStr,
 };
 
+#[cfg(not(feature = "bdos_mock"))]
 use cpu::{INTERRUPT_SENDER, PAUSE_SENDER};
 pub use errors::{EmulatorErrors, MemoryOutOfBounds};
 
@@ -66,6 +67,7 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
 /// since this function will be called from FFI thread.
 /// (e.g. threads spawned by Swift language where we
 /// cannot enforce any ownership mechanism)
+#[cfg(not(feature = "bdos_mock"))]
 #[no_mangle]
 pub extern "C" fn send_interrupt(interrupt: u8, allow_nested_interrupt: bool) {
     INTERRUPT_SENDER
@@ -81,6 +83,7 @@ pub extern "C" fn send_interrupt(interrupt: u8, allow_nested_interrupt: bool) {
 /// or pause the execution of instructions, again we
 /// shall not borrow the CPU instance same as `send_interrupt`
 /// since this function should always be called from a separated thread
+#[cfg(not(feature = "bdos_mock"))]
 #[no_mangle]
 pub extern "C" fn pause_start_execution() {
     PAUSE_SENDER
