@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "8080-emulator" ]
     tags:
-    - 'v*'
+    - "refs/tags/v*"
   pull_request:
     branches: [ "8080-emulator" ]
 
@@ -37,7 +37,12 @@ jobs:
         zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator.a
     - name: Get tag name from ref
       id: get_tag
-      run: echo "TAG_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+      run: |
+          if [[ "${{ github.ref }}" == "refs/tags/"* ]]; then
+            echo "TAG_NAME=${{ github.ref#refs/tags/ }}" >> $GITHUB_ENV
+          else
+            echo "TAG_NAME=${{ github.ref }}" >> $GITHUB_ENV
+          fi
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
