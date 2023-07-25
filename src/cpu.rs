@@ -2,19 +2,21 @@ use core::panic;
 use std::{
     mem,
     ops::{Deref, DerefMut},
-    sync::{
-        mpsc::{Receiver, Sender},
-        Mutex, OnceLock,
-    },
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use std::sync::mpsc::channel;
+#[cfg(not(feature = "cpu_diag"))]
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Mutex, OnceLock,
+};
 
+#[cfg(not(feature = "cpu_diag"))]
 /// shared with consumer for delivering interrupts to our CPU
 pub static INTERRUPT_SENDER: OnceLock<Mutex<Sender<(u8, bool)>>> = OnceLock::new();
 
+#[cfg(not(feature = "cpu_diag"))]
 /// shared with consumer for pause/start the execution
 pub static PAUSE_SENDER: OnceLock<Mutex<Sender<()>>> = OnceLock::new();
 
@@ -22,7 +24,6 @@ use crate::{
     condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
 };
 
-#[repr(C)]
 pub struct Cpu8080<'a> {
     ram: &'a mut [u8],
     rom: &'a [u8],
@@ -38,7 +39,9 @@ pub struct Cpu8080<'a> {
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
     io_callbacks: IoCallbacks,
+    #[cfg(not(feature = "cpu_diag"))]
     interrupt_receiver: Receiver<(u8, bool)>,
+    #[cfg(not(feature = "cpu_diag"))]
     pause_receiver: Receiver<()>,
 }
 
@@ -170,9 +173,13 @@ macro_rules! push_to_reg_pair {
 
 impl<'a> Cpu8080<'a> {
     pub fn new(rom: &'a [u8], ram: &'a mut [u8], io_callbacks: IoCallbacks) -> Self {
+        #[cfg(not(feature = "cpu_diag"))]
         let (interrupt_sender, interrupt_receiver) = channel();
+        #[cfg(not(feature = "cpu_diag"))]
         INTERRUPT_SENDER.set(Mutex::new(interrupt_sender)).unwrap();
+        #[cfg(not(feature = "cpu_diag"))]
         let (pause_sender, pause_receiver) = channel();
+        #[cfg(not(feature = "cpu_diag"))]
         PAUSE_SENDER.set(Mutex::new(pause_sender)).unwrap();
         Cpu8080 {
             reg_a: 0,
@@ -189,7 +196,9 @@ impl<'a> Cpu8080<'a> {
             conditon_codes: ConditionCodes::default(),
             interrupt_enabled: false,
             io_callbacks,
+            #[cfg(not(feature = "cpu_diag"))]
             interrupt_receiver,
+            #[cfg(not(feature = "cpu_diag"))]
             pause_receiver,
         }
     }
@@ -534,7 +543,7 @@ impl<'a> Cpu8080<'a> {
     ];
 
     pub fn run(&mut self) -> Result<()> {
-        #[cfg(feature = "bdos_mock")]
+        #[cfg(feature = "cpu_diag")]
         {
             self.pc = 0x100
         }
@@ -546,10 +555,10 @@ impl<'a> Cpu8080<'a> {
             .unwrap()
             .as_micros();
         let mut circles = 0;
-        #[cfg(not(feature = "bdos_mock"))]
+        #[cfg(not(feature = "cpu_diag"))]
         let mut pause = true;
         while self.pc < self.rom.len() as u16 {
-            #[cfg(not(feature = "bdos_mock"))]
+            #[cfg(not(feature = "cpu_diag"))]
             if pause {
                 self.pause_receiver.recv().unwrap();
                 pause = false
@@ -557,6 +566,7 @@ impl<'a> Cpu8080<'a> {
                 pause = true
             }
             circles += self.execute()?;
+            #[cfg(not(feature = "cpu_diag"))]
             if let Ok((irq_no, allow_nested_interrupt)) = self.interrupt_receiver.try_recv() {
                 if self.interrupt_enabled {
                     self.rst(irq_no)?;
@@ -589,7 +599,7 @@ impl<'a> Cpu8080<'a> {
 
     fn execute(&mut self) -> Result<u64> {
         let opcode = self.load_byte_from_memory(self.pc.into())?;
-        #[cfg(feature = "bdos_mock")]
+        #[cfg(feature = "cpu_diag")]
         if self.pc == 5 {
             self.call_bdos()?;
             self.pc -= 1;
@@ -949,10 +959,10 @@ impl<'a> Cpu8080<'a> {
         self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
         self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
         self.sp -= 2;
-        #[cfg(feature = "bdos_mock")]
+        #[cfg(feature = "cpu_diag")]
         let old_pc = self.pc - 1;
         self.pc = u16::from_le_bytes(self.load_d16_operand()?);
-        #[cfg(feature = "bdos_mock")]
+        #[cfg(feature = "cpu_diag")]
         println!(
             "call into {:#06x} from {:#06x}, sp = {:#06x}",
             self.pc, old_pc, self.sp
@@ -961,7 +971,7 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
-    #[cfg(feature = "bdos_mock")]
+    #[cfg(feature = "cpu_diag")]
     fn call_bdos(&mut self) -> Result<()> {
         let msg_addr = (u16::from_le_bytes([self.reg_e, self.reg_d]) + 3) as usize; // skipping 0CH,0DH,0AH
         assert_eq!(msg_addr, 0x0178);
@@ -984,10 +994,10 @@ impl<'a> Cpu8080<'a> {
                 self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
                 self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
                 self.sp -= 2;
-                #[cfg(feature = "bdos_mock")]
+                #[cfg(feature = "cpu_diag")]
                 let old_pc = self.pc;
                 self.pc = rst_no as u16 * 8;
-                #[cfg(feature = "bdos_mock")]
+                #[cfg(feature = "cpu_diag")]
                 println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
             }
             _ => panic!("unsupported IRQ {rst_no}"),
@@ -1041,7 +1051,7 @@ impl<'a> Cpu8080<'a> {
         let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
         self.pc = u16::from_le_bytes([addr_lo, addr_hi]);
         self.sp += 2;
-        #[cfg(feature = "bdos_mock")]
+        #[cfg(feature = "cpu_diag")]
         println!("Return back to {:#06x}, sp = {:#06x}", self.pc, self.sp);
         Ok(())
     }
@@ -1068,10 +1078,10 @@ impl<'a> Cpu8080<'a> {
     ];
 
     fn jmp(&mut self) -> Result<()> {
-        #[cfg(feature = "bdos_mock")]
+        #[cfg(feature = "cpu_diag")]
         let old_pc = self.pc - 1;
         self.pc = u16::from_le_bytes(self.load_d16_operand()?);
-        #[cfg(feature = "bdos_mock")]
+        #[cfg(feature = "cpu_diag")]
         println!("Jump from {:#06x} to {:#06x}", old_pc, self.pc);
         Ok(())
     }

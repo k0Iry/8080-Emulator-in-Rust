@@ -21,7 +21,7 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Run cpu diagnosis
-      run: cargo run --features="bdos_mock"
+      run: cargo run --features="cpu_diag"
     - name: Install targets
       run: rustup target add aarch64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
     - name: Build for x86_64 macOS

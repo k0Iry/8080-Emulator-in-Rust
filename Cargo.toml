@@ -16,10 +16,10 @@ homepage = "https://github.com/k0Iry/8080-Emulator-in-Rust"
 name = "cpudiag"
 test = false
 doctest = false
-required-features = ["bdos_mock"]
+required-features = ["cpu_diag"]
 
 [features]
-bdos_mock = []
+cpu_diag = []
 
 [lib]
 doctest = false
