@@ -28,15 +28,12 @@ jobs:
       run: cargo build --lib --target=aarch64-apple-darwin --release --verbose
     - name: Build for iOS
       run: cargo build --lib --target=aarch64-apple-ios --release --verbose
-    - uses: actions/upload-artifact@v3
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        name: x86_64_darwin
-        path: target/x86_64-apple-darwin/release/libi8080emulator.a
-    - uses: actions/upload-artifact@v3
-      with:
-        name: aarch64_darwin
-        path: target/aarch64-apple-darwin/release/libi8080emulator.a
-    - uses: actions/upload-artifact@v3
-      with:
-        name: iOS
-        path: target/aarch64-apple-ios/release/libi8080emulator.a
+        upload_url: ${{ github.event.release.upload_url }} 
+        asset_path: target/x86_64-apple-darwin/release/libi8080emulator.a
+        asset_name: libi8080emulator_x86_64_darwin.a
+        asset_content_type: application/octet-stream
