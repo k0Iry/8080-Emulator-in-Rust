@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use emulator::{Cpu8080, IoCallbacks, Result};
+use i8080emulator::{Cpu8080, IoCallbacks, Result};
 
 fn main() -> Result<()> {
     let cpudiag_prog = Path::new(env!("CARGO_MANIFEST_DIR")).join("diagnosis_program/cpudiag");

@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "emulator"
+name = "i8080emulator"
 version = "0.1.0"
