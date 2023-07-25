@@ -10,6 +10,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  library_release:
+    name: Create release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.step_version.outputs.version }}
+      upload_url: ${{ steps.step_upload_url.outputs.upload_url }}
+    steps:
+      - id: step_version
+        run: echo "::set-output name=version::${{ steps.package_version.outputs.version }}"
+      - id: step_upload_url
+        run: echo "::set-output name=upload_url::${{ steps.create_release.outputs.upload_url }}"
+  
   build:
 
     runs-on: ubuntu-latest
@@ -33,7 +45,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ github.event.release.upload_url }} 
+        upload_url: ${{ needs.library_release.outputs.upload_url }}
         asset_path: target/x86_64-apple-darwin/release/libi8080emulator.a
         asset_name: libi8080emulator_x86_64_darwin.a
         asset_content_type: application/octet-stream
+      
+  
