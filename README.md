@@ -21,3 +21,4 @@ To use this library for app development, just build and copy the static library 
 
 ## Apps powered by this library
 - [Space Invaders on macOS](https://github.com/k0Iry/SpaceInvaders)
+- [Space Invaders on iOS](https://github.com/k0Iry/SpaceInvaders-iOS)
