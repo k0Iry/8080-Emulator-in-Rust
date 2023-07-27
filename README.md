@@ -17,8 +17,9 @@ If we take a look at the interfaces in *emulator.h* header file, we can see:
     - for receiving resume request, we check the request in a blocking manner (idle state)
 
 ## How to use
-To use this library for app development, just build and copy the static library *libemulator.a* and include the *emulator.h* header file in your project.
+To use this library for app development, you can download the library(*libi8080emulator.a*) and header file(*emulator.h*) from the releases page and add them in your project. P.S. **Currently the releases only contain macOS(both x64 and aarch64) and iOS targets.**
+
+If you can't find the target in the releases, you need to clone the source code and build it on your own, e.g. android (`aarch64-linux-android, arm-linux-androideabi` and etc...).
 
 ## Apps powered by this library
-- [Space Invaders on macOS](https://github.com/k0Iry/SpaceInvaders)
-- [Space Invaders on iOS](https://github.com/k0Iry/SpaceInvaders-iOS)
+- [Space Invaders on macOS + iOS](https://github.com/k0Iry/SpaceInvaders)
