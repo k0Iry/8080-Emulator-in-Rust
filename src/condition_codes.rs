@@ -34,31 +34,19 @@ impl Display for ConditionCodes {
     }
 }
 
-macro_rules! generate_set_bit {
-    ( $( ($set:ident, $bit:expr) ),* ) => {
+macro_rules! generate_bit_operations {
+    ( $( ($set:ident, $reset:ident, $check:ident, $bit_loc:expr) ),* ) => {
         $(
             pub fn $set(&mut self) {
-                self.bitor_assign($bit)
+                self.bitor_assign(1 << $bit_loc)
             }
-        )*
-    };
-}
 
-macro_rules! generate_reset_bit {
-    ( $( ($reset:ident, $bit:expr) ),* ) => {
-        $(
             pub fn $reset(&mut self) {
-                self.bitand_assign(!$bit)
+                self.bitand_assign(!(1 << $bit_loc))
             }
-        )*
-    };
-}
 
-macro_rules! generate_check_bit {
-    ( $( ($check:ident, $bit_loc:expr) ),* ) => {
-        $(
             pub fn $check(&self) -> bool {
-                self.shr($bit_loc as u8).bitand(1) == 1
+                return self.shr($bit_loc as u8).bitand(1) == 1
             }
         )*
     };
@@ -67,27 +55,11 @@ macro_rules! generate_check_bit {
 /// 0---0---0---0---0---0---0---0
 /// N/A N/A N/A AC  P  Z   S   C
 impl ConditionCodes {
-    generate_set_bit![
-        (set_carry, 1),
-        (set_sign, 2),
-        (set_zero, 4),
-        (set_parity, 8),
-        (set_aux_carry, 16)
-    ];
-
-    generate_reset_bit![
-        (reset_carry, 1),
-        (reset_sign, 2),
-        (reset_zero, 4),
-        (reset_parity, 8),
-        (reset_aux_carry, 16)
-    ];
-
-    generate_check_bit![
-        (is_carry_set, 0),
-        (is_sign_set, 1),
-        (is_zero_set, 2),
-        (is_parity_set, 3),
-        (is_aux_carry_set, 4)
+    generate_bit_operations![
+        (set_carry, reset_carry, is_carry_set, 0),
+        (set_sign, reset_sign, is_sign_set, 1),
+        (set_zero, reset_zero, is_zero_set, 2),
+        (set_parity, reset_parity, is_parity_set, 3),
+        (set_aux_carry, reset_aux_carry, is_aux_carry_set, 4)
     ];
 }

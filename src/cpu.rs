@@ -45,21 +45,15 @@ pub struct Cpu8080<'a> {
     pause_receiver: Receiver<()>,
 }
 
-macro_rules! generate_move_from_mem {
-    ( $( ($func:ident, $reg:ident) ),* ) => {
+macro_rules! generate_move_between_reg_and_memory {
+    ( $( ($move_from_memory:ident, $move_to_memory:ident, $reg:ident) ),* ) => {
         $(
-            fn $func(&mut self) -> Result<()> {
+            fn $move_from_memory(&mut self) -> Result<()> {
                 let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
                 Ok(self.$reg = self.load_byte_from_memory(mem_addr.into())?)
             }
-        )*
-    };
-}
 
-macro_rules! generate_store_reg_to_ram {
-    ( $( ($func:ident, $reg:ident) ),* ) => {
-        $(
-            fn $func(&mut self) -> Result<()> {
+            fn $move_to_memory(&mut self) -> Result<()> {
                 let mem_addr = u16::from_le_bytes([self.reg_l, self.reg_h]);
                 self.store_to_ram(mem_addr.into(), self.$reg)
             }
@@ -67,23 +61,8 @@ macro_rules! generate_store_reg_to_ram {
     };
 }
 
-macro_rules! generate_jump_on_condition {
-    ( $( ($jump:ident, $condition:ident) ),* ) => {
-        $(
-            fn $jump(&mut self, $condition: bool) -> Result<()> {
-                if $condition {
-                    self.jmp()?;
-                } else {
-                    self.pc += 2;
-                }
-                Ok(())
-            }
-        )*
-    };
-}
-
-macro_rules! generate_call_on_condition {
-    ( $( ($call:ident, $condition:ident) ),* ) => {
+macro_rules! generate_call_jump_return_on_condition {
+    ( $( ($call:ident, $jump:ident, $return:ident, $condition:ident) ),* ) => {
         $(
             fn $call(&mut self, $condition: bool) -> Result<()> {
                 if $condition {
@@ -93,14 +72,17 @@ macro_rules! generate_call_on_condition {
                 }
                 Ok(())
             }
-        )*
-    };
-}
 
-macro_rules! generate_return_on_condition {
-    ( $( ($ret:ident, $condition:ident) ),* ) => {
-        $(
-            fn $ret(&mut self, $condition: bool) -> Result<()> {
+            fn $jump(&mut self, $condition: bool) -> Result<()> {
+                if $condition {
+                    self.jmp()?;
+                } else {
+                    self.pc += 2;
+                }
+                Ok(())
+            }
+
+            fn $return(&mut self, $condition: bool) -> Result<()> {
                 if $condition {
                     self.ret()?;
                 }
@@ -128,7 +110,7 @@ macro_rules! generate_inc_dec_reg_pair {
             fn $func(&mut self) {
                 let pair_value = u16::from_le_bytes([self.$reg_lo, self.$reg_hi]) as u32;
                 let value = $value as u32;
-                [_, _, self.$reg_hi, self.$reg_lo] = (pair_value + value).to_be_bytes();
+                [.., self.$reg_hi, self.$reg_lo] = (pair_value + value).to_be_bytes();
             }
         )*
     };
@@ -144,27 +126,21 @@ macro_rules! generate_inc_dec_reg {
     };
 }
 
-macro_rules! pop_to_reg_pair {
-    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
+macro_rules! generate_push_and_pop_reg_pair {
+    ( $( ($push:ident, $pop:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
         $(
-            fn $func(&mut self) -> Result<()> {
+            fn $push(&mut self) -> Result<()> {
+                self.store_to_ram((self.sp - 1).into(), self.$reg_hi)?;
+                self.store_to_ram((self.sp - 2).into(), self.$reg_lo)?;
+                self.sp -= 2;
+                Ok(())
+            }
+
+            fn $pop(&mut self) -> Result<()> {
                 let addr_lo = self.load_byte_from_memory(self.sp.into())?;
                 let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
                 (self.$reg_lo, self.$reg_hi) = (addr_lo, addr_hi);
                 self.sp += 2;
-                Ok(())
-            }
-        )*
-    };
-}
-
-macro_rules! push_to_reg_pair {
-    ( $( ($func:ident, $reg_hi:ident, $reg_lo:ident) ),* ) => {
-        $(
-            fn $func(&mut self) -> Result<()> {
-                self.store_to_ram((self.sp - 1).into(), self.$reg_hi)?;
-                self.store_to_ram((self.sp - 2).into(), self.$reg_lo)?;
-                self.sp -= 2;
                 Ok(())
             }
         )*
@@ -516,24 +492,14 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
-    generate_move_from_mem![
-        (move_from_mem_to_b, reg_b),
-        (move_from_mem_to_c, reg_c),
-        (move_from_mem_to_d, reg_d),
-        (move_from_mem_to_e, reg_e),
-        (move_from_mem_to_l, reg_l),
-        (move_from_mem_to_h, reg_h),
-        (move_from_mem_to_a, reg_a)
-    ];
-
-    generate_store_reg_to_ram![
-        (store_reg_b_to_ram, reg_b),
-        (store_reg_c_to_ram, reg_c),
-        (store_reg_d_to_ram, reg_d),
-        (store_reg_e_to_ram, reg_e),
-        (store_reg_l_to_ram, reg_l),
-        (store_reg_h_to_ram, reg_h),
-        (store_reg_a_to_ram, reg_a)
+    generate_move_between_reg_and_memory![
+        (move_from_mem_to_b, store_reg_b_to_ram, reg_b),
+        (move_from_mem_to_c, store_reg_c_to_ram, reg_c),
+        (move_from_mem_to_d, store_reg_d_to_ram, reg_d),
+        (move_from_mem_to_e, store_reg_e_to_ram, reg_e),
+        (move_from_mem_to_l, store_reg_l_to_ram, reg_l),
+        (move_from_mem_to_h, store_reg_h_to_ram, reg_h),
+        (move_from_mem_to_a, store_reg_a_to_ram, reg_a)
     ];
 
     generate_load_data_into_reg_pair![
@@ -873,11 +839,11 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
-    generate_call_on_condition![
-        (call_on_zero, is_zero_set),
-        (call_on_carry, is_carry_set),
-        (call_on_parity, is_parity_set_set),
-        (call_on_sign, is_sign_set_set)
+    generate_call_jump_return_on_condition![
+        (call_on_zero, jump_on_zero, ret_on_zero, is_zero_set),
+        (call_on_carry, jump_on_carry, ret_on_carry, is_carry_set),
+        (call_on_parity, jump_on_parity, ret_on_parity, is_parity_set),
+        (call_on_sign, jump_on_sign, ret_on_sign, is_sign_set)
     ];
 
     fn shld(&mut self) -> Result<()> {
@@ -927,10 +893,10 @@ impl<'a> Cpu8080<'a> {
         Ok(())
     }
 
-    pop_to_reg_pair![
-        (pop_b, reg_b, reg_c),
-        (pop_d, reg_d, reg_e),
-        (pop_h, reg_h, reg_l)
+    generate_push_and_pop_reg_pair![
+        (push_b, pop_b, reg_b, reg_c),
+        (push_d, pop_d, reg_d, reg_e),
+        (push_h, pop_h, reg_h, reg_l)
     ];
 
     fn pop_psw(&mut self) -> Result<()> {
@@ -940,12 +906,6 @@ impl<'a> Cpu8080<'a> {
         self.sp += 2;
         Ok(())
     }
-
-    push_to_reg_pair![
-        (push_b, reg_b, reg_c),
-        (push_d, reg_d, reg_e),
-        (push_h, reg_h, reg_l)
-    ];
 
     fn push_psw(&mut self) -> Result<()> {
         self.store_to_ram((self.sp - 1).into(), self.reg_a)?;
@@ -1039,13 +999,6 @@ impl<'a> Cpu8080<'a> {
         self.set_parity(self.reg_a.count_ones() % 2 == 0);
     }
 
-    generate_return_on_condition![
-        (ret_on_zero, is_zero_set),
-        (ret_on_carry, is_carry_set),
-        (ret_on_parity, is_parity_set_set),
-        (ret_on_sign, is_sign_set_set)
-    ];
-
     fn ret(&mut self) -> Result<()> {
         let addr_lo = self.load_byte_from_memory(self.sp.into())?;
         let addr_hi = self.load_byte_from_memory((self.sp + 1).into())?;
@@ -1069,13 +1022,6 @@ impl<'a> Cpu8080<'a> {
         self.pc += 1;
         Ok(value)
     }
-
-    generate_jump_on_condition![
-        (jump_on_zero, is_zero_set),
-        (jump_on_carry, is_carry_set),
-        (jump_on_parity, is_parity_set_set),
-        (jump_on_sign, is_sign_set_set)
-    ];
 
     fn jmp(&mut self) -> Result<()> {
         #[cfg(feature = "cpu_diag")]
