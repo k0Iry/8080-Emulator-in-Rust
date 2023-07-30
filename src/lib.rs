@@ -12,7 +12,8 @@ use std::{
 };
 
 #[cfg(not(feature = "cpu_diag"))]
-use cpu::{INTERRUPT_SENDER, PAUSE_SENDER};
+use cpu::MESSAGE_SENDER;
+
 pub use errors::{EmulatorErrors, MemoryOutOfBounds};
 
 pub type Result<T> = std::result::Result<T, EmulatorErrors>;
@@ -30,6 +31,20 @@ pub struct IoCallbacks {
     pub input: extern "C" fn(port: u8) -> u8,
     /// OUT port value, pass port & value back to app
     pub output: extern "C" fn(port: u8, value: u8),
+}
+
+#[cfg(not(feature = "cpu_diag"))]
+#[repr(C)]
+pub struct IrqMessage {
+    irq_no: u8,
+    allow_nested_interrupt: bool,
+}
+
+#[cfg(not(feature = "cpu_diag"))]
+#[repr(C)]
+pub enum Message {
+    Interrupt(IrqMessage),
+    ExecutionControl,
 }
 
 /// # Safety
@@ -62,6 +77,15 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
     cpu.run().unwrap();
 }
 
+/// # Safety
+/// This function should be safe for accessing video ram
+#[cfg(not(feature = "cpu_diag"))]
+#[no_mangle]
+pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
+    let cpu = &*cpu;
+    cpu.get_ram().as_ptr()
+}
+
 /// Always called from a separated thread!
 /// It is crucial that we don't borrow our CPU instance
 /// since this function will be called from FFI thread.
@@ -69,36 +93,12 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
 /// cannot enforce any ownership mechanism)
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
-pub extern "C" fn send_interrupt(interrupt: u8, allow_nested_interrupt: bool) {
-    INTERRUPT_SENDER
+pub extern "C" fn send_message(message: Message) {
+    MESSAGE_SENDER
         .get()
         .unwrap()
         .lock()
         .unwrap()
-        .send((interrupt, allow_nested_interrupt))
+        .send(message)
         .unwrap()
-}
-
-/// Channel for the control of execution, we can either start
-/// or pause the execution of instructions, again we
-/// shall not borrow the CPU instance same as `send_interrupt`
-/// since this function should always be called from a separated thread
-#[cfg(not(feature = "cpu_diag"))]
-#[no_mangle]
-pub extern "C" fn pause_start_execution() {
-    PAUSE_SENDER
-        .get()
-        .unwrap()
-        .lock()
-        .unwrap()
-        .send(())
-        .unwrap()
-}
-
-/// # Safety
-/// This function should be safe for accessing video ram
-#[no_mangle]
-pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
-    let cpu = &*cpu;
-    cpu.get_ram().as_ptr()
 }
