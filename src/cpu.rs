@@ -13,16 +13,14 @@ use std::sync::{
 };
 
 #[cfg(not(feature = "cpu_diag"))]
-/// shared with consumer for delivering interrupts to our CPU
-pub static INTERRUPT_SENDER: OnceLock<Mutex<Sender<(u8, bool)>>> = OnceLock::new();
-
-#[cfg(not(feature = "cpu_diag"))]
-/// shared with consumer for pause/start the execution
-pub static PAUSE_SENDER: OnceLock<Mutex<Sender<()>>> = OnceLock::new();
+pub static MESSAGE_SENDER: OnceLock<Mutex<Sender<Message>>> = OnceLock::new();
 
 use crate::{
     condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
 };
+
+#[cfg(not(feature = "cpu_diag"))]
+use crate::{IrqMessage, Message};
 
 pub struct Cpu8080<'a> {
     ram: &'a mut [u8],
@@ -40,9 +38,7 @@ pub struct Cpu8080<'a> {
     interrupt_enabled: bool,
     io_callbacks: IoCallbacks,
     #[cfg(not(feature = "cpu_diag"))]
-    interrupt_receiver: Receiver<(u8, bool)>,
-    #[cfg(not(feature = "cpu_diag"))]
-    pause_receiver: Receiver<()>,
+    message_receiver: Receiver<Message>,
 }
 
 macro_rules! generate_move_between_reg_and_memory {
@@ -150,13 +146,9 @@ macro_rules! generate_push_and_pop_reg_pair {
 impl<'a> Cpu8080<'a> {
     pub fn new(rom: &'a [u8], ram: &'a mut [u8], io_callbacks: IoCallbacks) -> Self {
         #[cfg(not(feature = "cpu_diag"))]
-        let (interrupt_sender, interrupt_receiver) = channel();
+        let (message_sender, message_receiver) = channel();
         #[cfg(not(feature = "cpu_diag"))]
-        INTERRUPT_SENDER.set(Mutex::new(interrupt_sender)).unwrap();
-        #[cfg(not(feature = "cpu_diag"))]
-        let (pause_sender, pause_receiver) = channel();
-        #[cfg(not(feature = "cpu_diag"))]
-        PAUSE_SENDER.set(Mutex::new(pause_sender)).unwrap();
+        MESSAGE_SENDER.set(Mutex::new(message_sender)).unwrap();
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -173,9 +165,7 @@ impl<'a> Cpu8080<'a> {
             interrupt_enabled: false,
             io_callbacks,
             #[cfg(not(feature = "cpu_diag"))]
-            interrupt_receiver,
-            #[cfg(not(feature = "cpu_diag"))]
-            pause_receiver,
+            message_receiver,
         }
     }
 
@@ -526,20 +516,27 @@ impl<'a> Cpu8080<'a> {
         while self.pc < self.rom.len() as u16 {
             #[cfg(not(feature = "cpu_diag"))]
             if pause {
-                self.pause_receiver.recv().unwrap();
-                pause = false
-            } else if self.pause_receiver.try_recv().is_ok() {
-                pause = true
+                if let Message::ExecutionControl = self.message_receiver.recv().unwrap() {
+                    pause = false
+                } else {
+                    continue;
+                }
+            } else if let Ok(message) = self.message_receiver.try_recv() {
+                match message {
+                    Message::ExecutionControl => pause = true,
+                    Message::Interrupt(IrqMessage {
+                        irq_no,
+                        allow_nested_interrupt,
+                    }) => {
+                        if self.interrupt_enabled {
+                            self.rst(irq_no)?;
+                            circles += CLOCK_CYCLES[0xc7_usize] as u64
+                        }
+                        self.interrupt_enabled = allow_nested_interrupt
+                    }
+                }
             }
             circles += self.execute()?;
-            #[cfg(not(feature = "cpu_diag"))]
-            if let Ok((irq_no, allow_nested_interrupt)) = self.interrupt_receiver.try_recv() {
-                if self.interrupt_enabled {
-                    self.rst(irq_no)?;
-                    circles += CLOCK_CYCLES[0xc7_usize] as u64
-                }
-                self.interrupt_enabled = allow_nested_interrupt
-            }
             if circles >= 16666 {
                 let time_spent = SystemTime::now()
                     .duration_since(UNIX_EPOCH)

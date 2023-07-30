@@ -17,6 +17,25 @@ typedef struct IoCallbacks {
   void (*output)(uint8_t port, uint8_t value);
 } IoCallbacks;
 
+typedef struct IrqMessage {
+  uint8_t irq_no;
+  bool allow_nested_interrupt;
+} IrqMessage;
+
+typedef enum Message_Tag {
+  Interrupt,
+  ExecutionControl,
+} Message_Tag;
+
+typedef struct Message {
+  Message_Tag tag;
+  union {
+    struct {
+      struct IrqMessage interrupt;
+    };
+  };
+} Message;
+
 /**
  * # Safety
  * This function should be called with valid rom path
@@ -38,19 +57,13 @@ void run(struct Cpu8080 *cpu);
  * since this function will be called from FFI thread.
  * (e.g. threads spawned by Swift language where we
  * cannot enforce any ownership mechanism)
- */
-void send_interrupt(uint8_t interrupt, bool allow_nested_interrupt);
-
-/**
  * Channel for the control of execution, we can either start
  * or pause the execution of instructions, again we
  * shall not borrow the CPU instance same as `send_interrupt`
  * since this function should always be called from a separated thread
- */
-void pause_start_execution(void);
-
-/**
  * # Safety
  * This function should be safe for accessing video ram
  */
 const uint8_t *get_ram(struct Cpu8080 *cpu);
+
+void send_message(struct Message message);
