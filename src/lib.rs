@@ -3,6 +3,7 @@ mod condition_codes;
 mod cpu;
 mod errors;
 
+#[cfg(not(feature = "cpu_diag"))]
 use std::{
     ffi::{c_char, CStr},
     fs::File,
@@ -50,6 +51,7 @@ pub enum Message {
 /// # Safety
 /// This function should be called with valid rom path
 /// and the RAM will be allocated on the fly
+#[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
 pub unsafe extern "C" fn new_cpu_instance<'a>(
     rom_path: *const c_char,
@@ -71,6 +73,7 @@ pub unsafe extern "C" fn new_cpu_instance<'a>(
 
 /// # Safety
 /// This function should be safe
+#[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
 pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
     let cpu = &mut Box::from_raw(cpu);
