@@ -534,6 +534,18 @@ impl<'a> Cpu8080<'a> {
                         }
                         self.interrupt_enabled = allow_nested_interrupt
                     }
+                    Message::Restart => {
+                        self.ram.fill(0);
+                        self.pc = 0;
+                        self.reg_a = 0;
+                        self.reg_b = 0;
+                        self.reg_c = 0;
+                        self.reg_d = 0;
+                        self.reg_e = 0;
+                        self.reg_h = 0;
+                        self.interrupt_enabled = false;
+                        *self.conditon_codes.deref_mut() = 0;
+                    }
                 }
             }
             circles += self.execute()?;

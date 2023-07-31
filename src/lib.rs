@@ -46,6 +46,7 @@ pub struct IrqMessage {
 pub enum Message {
     Interrupt(IrqMessage),
     ExecutionControl,
+    Restart,
 }
 
 /// # Safety
