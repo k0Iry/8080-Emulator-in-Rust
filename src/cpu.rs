@@ -516,14 +516,14 @@ impl<'a> Cpu8080<'a> {
         while self.pc < self.rom.len() as u16 {
             #[cfg(not(feature = "cpu_diag"))]
             if pause {
-                if let Message::ExecutionControl = self.message_receiver.recv().unwrap() {
+                if let Message::Suspend = self.message_receiver.recv().unwrap() {
                     pause = false
                 } else {
                     continue;
                 }
             } else if let Ok(message) = self.message_receiver.try_recv() {
                 match message {
-                    Message::ExecutionControl => pause = true,
+                    Message::Suspend => pause = true,
                     Message::Interrupt(IrqMessage {
                         irq_no,
                         allow_nested_interrupt,

@@ -45,7 +45,7 @@ pub struct IrqMessage {
 #[repr(C)]
 pub enum Message {
     Interrupt(IrqMessage),
-    ExecutionControl,
+    Suspend,
     Restart,
 }
 
