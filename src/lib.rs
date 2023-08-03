@@ -67,7 +67,7 @@ pub unsafe extern "C" fn new_cpu_instance<'a>(
         .unwrap();
     Box::into_raw(Box::new(Cpu8080::new(
         &*rom.leak(),
-        vec![0; ram_size].leak(),
+        vec![0; ram_size],
         callbacks,
     )))
 }
