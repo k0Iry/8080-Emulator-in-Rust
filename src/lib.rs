@@ -36,13 +36,6 @@ pub struct IoCallbacks {
 
 #[cfg(not(feature = "cpu_diag"))]
 #[repr(C)]
-pub struct IrqMessage {
-    irq_no: u8,
-    allow_nested_interrupt: bool,
-}
-
-#[cfg(not(feature = "cpu_diag"))]
-#[repr(C)]
 pub enum Message {
     Interrupt {
         irq_no: u8,
