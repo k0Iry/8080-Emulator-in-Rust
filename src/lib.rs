@@ -44,7 +44,10 @@ pub struct IrqMessage {
 #[cfg(not(feature = "cpu_diag"))]
 #[repr(C)]
 pub enum Message {
-    Interrupt(IrqMessage),
+    Interrupt {
+        irq_no: u8,
+        allow_nested_interrupt: bool,
+    },
     Suspend,
     Restart,
 }

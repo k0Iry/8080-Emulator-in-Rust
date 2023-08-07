@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[cfg(not(feature = "cpu_diag"))]
-use crate::{IrqMessage, Message};
+use crate::Message;
 
 pub struct Cpu8080<'a> {
     ram: Vec<u8>,
@@ -524,10 +524,10 @@ impl<'a> Cpu8080<'a> {
             } else if let Ok(message) = self.message_receiver.try_recv() {
                 match message {
                     Message::Suspend => pause = true,
-                    Message::Interrupt(IrqMessage {
+                    Message::Interrupt {
                         irq_no,
                         allow_nested_interrupt,
-                    }) => {
+                    } => {
                         if self.interrupt_enabled {
                             self.rst(irq_no)?;
                             circles += CLOCK_CYCLES[0xc7_usize] as u64
