@@ -4,15 +4,13 @@ mod cpu;
 mod errors;
 
 #[cfg(not(feature = "cpu_diag"))]
-use std::sync::mpsc::Sender;
-
-#[cfg(not(feature = "cpu_diag"))]
 use std::{
     ffi::{c_char, CStr},
     fs::File,
     io::{BufReader, Read},
     path::PathBuf,
     str::FromStr,
+    sync::mpsc::Sender,
 };
 
 pub use errors::{EmulatorErrors, MemoryOutOfBounds};

@@ -10,12 +10,9 @@ use std::{
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 #[cfg(not(feature = "cpu_diag"))]
-use crate::IoCallbacks;
+use crate::{IoCallbacks, Message};
 
 use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result, CLOCK_CYCLES};
-
-#[cfg(not(feature = "cpu_diag"))]
-use crate::Message;
 
 pub struct Cpu8080 {
     ram: Vec<u8>,
