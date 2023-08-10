@@ -43,6 +43,7 @@ pub enum Message {
     },
     Suspend,
     Restart,
+    Shutdown,
 }
 
 /// # Safety
