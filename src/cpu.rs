@@ -22,9 +22,9 @@ use crate::{
 #[cfg(not(feature = "cpu_diag"))]
 use crate::Message;
 
-pub struct Cpu8080<'a> {
+pub struct Cpu8080 {
     ram: Vec<u8>,
-    rom: &'a [u8],
+    rom: Vec<u8>,
     sp: u16,
     pc: u16,
     reg_a: u8,
@@ -143,8 +143,8 @@ macro_rules! generate_push_and_pop_reg_pair {
     };
 }
 
-impl<'a> Cpu8080<'a> {
-    pub fn new(rom: &'a [u8], ram: Vec<u8>, io_callbacks: IoCallbacks) -> Self {
+impl Cpu8080 {
+    pub fn new(rom: Vec<u8>, ram: Vec<u8>, io_callbacks: IoCallbacks) -> Self {
         #[cfg(not(feature = "cpu_diag"))]
         let (message_sender, message_receiver) = channel();
         #[cfg(not(feature = "cpu_diag"))]
@@ -1048,14 +1048,13 @@ mod tests {
 
     #[test]
     fn cpu_opcode_tests() {
-        let dummy_rom = &vec![0; 0];
         pub extern "C" fn input(port: u8) -> u8 {
             port
         }
         pub extern "C" fn output(port: u8, value: u8) {
             println!("{port}, {value}")
         }
-        let mut cpu = Cpu8080::new(dummy_rom, vec![0; 0], IoCallbacks { input, output });
+        let mut cpu = Cpu8080::new(vec![0; 0], vec![0; 0], IoCallbacks { input, output });
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;

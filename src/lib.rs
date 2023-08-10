@@ -50,22 +50,18 @@ pub enum Message {
 /// and the RAM will be allocated on the fly
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
-pub unsafe extern "C" fn new_cpu_instance<'a>(
+pub unsafe extern "C" fn new_cpu_instance(
     rom_path: *const c_char,
     ram_size: usize,
     callbacks: IoCallbacks,
-) -> *mut Cpu8080<'a> {
+) -> *mut Cpu8080 {
     let rom_path = CStr::from_ptr(rom_path);
     let rom_path = PathBuf::from_str(rom_path.to_str().unwrap()).unwrap();
     let rom = BufReader::new(File::open(rom_path).unwrap())
         .bytes()
         .collect::<std::result::Result<Vec<u8>, std::io::Error>>()
         .unwrap();
-    Box::into_raw(Box::new(Cpu8080::new(
-        &*rom.leak(),
-        vec![0; ram_size],
-        callbacks,
-    )))
+    Box::into_raw(Box::new(Cpu8080::new(rom, vec![0; ram_size], callbacks)))
 }
 
 /// # Safety

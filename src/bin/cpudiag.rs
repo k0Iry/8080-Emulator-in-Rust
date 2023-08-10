@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     pub extern "C" fn output(port: u8, value: u8) {
         println!("{port}, {value}")
     }
-    let mut cpu = Cpu8080::new(&rom, ram, IoCallbacks { input, output });
+    let mut cpu = Cpu8080::new(rom, ram, IoCallbacks { input, output });
     cpu.run()?;
     Ok(())
 }
