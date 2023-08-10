@@ -561,7 +561,7 @@ impl Cpu8080 {
                         *self.conditon_codes.deref_mut() = 0;
                     }
                     Message::Shutdown => {
-                        self.pc = self.rom.len() as u16;
+                        break;
                     }
                 }
             }
