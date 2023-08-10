@@ -17,6 +17,7 @@ If we take a look at the interfaces in *emulator.h* header file, we can see:
         - we check the pausing signal in a non-blocking manner (active state)
         - we check the resuming signal in a blocking manner (idle state)
     - Restarting from scratch, by clearing the RAM and resetting the PC and other general registers.
+    - Shutdown the game machine, you can send a `Shutdown` message to the CPU, the CPU instance will be dropped, subsequent message deliveries and RAM access **will not be valid**, and doing so will cause undefined behavior! Make sure to shutdown only after you stop sending any messages and accessing the RAM.
 
 ## How to use
 To use this library for app development, you can download the library(*libi8080emulator.a*) and header file(*emulator.h*) from the releases page and add them in your project. P.S. **Currently the releases only contain macOS(both x64 and aarch64) and iOS targets.**
