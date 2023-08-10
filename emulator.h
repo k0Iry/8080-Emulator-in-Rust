@@ -21,6 +21,7 @@ typedef enum Message_Tag {
   Interrupt,
   Suspend,
   Restart,
+  Shutdown,
 } Message_Tag;
 
 typedef struct Interrupt_Body {
