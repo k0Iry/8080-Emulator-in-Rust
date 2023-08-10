@@ -4,6 +4,9 @@ mod cpu;
 mod errors;
 
 #[cfg(not(feature = "cpu_diag"))]
+use std::sync::mpsc::Sender;
+
+#[cfg(not(feature = "cpu_diag"))]
 use std::{
     ffi::{c_char, CStr},
     fs::File,
@@ -11,9 +14,6 @@ use std::{
     path::PathBuf,
     str::FromStr,
 };
-
-#[cfg(not(feature = "cpu_diag"))]
-use cpu::MESSAGE_SENDER;
 
 pub use errors::{EmulatorErrors, MemoryOutOfBounds};
 
@@ -25,6 +25,7 @@ pub use condition_codes::ConditionCodes;
 
 pub use clock_cycles::cycles::CLOCK_CYCLES;
 
+#[cfg(not(feature = "cpu_diag"))]
 #[repr(C)]
 pub struct IoCallbacks {
     /// IN port, pass port number back to app
@@ -32,6 +33,13 @@ pub struct IoCallbacks {
     pub input: extern "C" fn(port: u8) -> u8,
     /// OUT port value, pass port & value back to app
     pub output: extern "C" fn(port: u8, value: u8),
+}
+
+#[cfg(not(feature = "cpu_diag"))]
+#[repr(C)]
+pub struct CpuSender {
+    cpu: *mut Cpu8080,
+    sender: *mut Sender<Message>,
 }
 
 #[cfg(not(feature = "cpu_diag"))]
@@ -55,23 +63,27 @@ pub unsafe extern "C" fn new_cpu_instance(
     rom_path: *const c_char,
     ram_size: usize,
     callbacks: IoCallbacks,
-) -> *mut Cpu8080 {
+) -> CpuSender {
     let rom_path = CStr::from_ptr(rom_path);
     let rom_path = PathBuf::from_str(rom_path.to_str().unwrap()).unwrap();
     let rom = BufReader::new(File::open(rom_path).unwrap())
         .bytes()
         .collect::<std::result::Result<Vec<u8>, std::io::Error>>()
         .unwrap();
-    Box::into_raw(Box::new(Cpu8080::new(rom, vec![0; ram_size], callbacks)))
+    let (cpu, sender) = Cpu8080::new(rom, vec![0; ram_size], callbacks);
+    CpuSender {
+        cpu: Box::into_raw(Box::new(cpu)),
+        sender: Box::into_raw(Box::new(sender)),
+    }
 }
 
 /// # Safety
 /// This function should be safe
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
-pub unsafe extern "C" fn run(cpu: *mut Cpu8080) {
-    let cpu = &mut Box::from_raw(cpu);
-    cpu.run().unwrap();
+pub unsafe extern "C" fn run(cpu: *mut Cpu8080, sender: *mut Sender<Message>) {
+    let _ = Box::from_raw(cpu).run();
+    let _ = Box::from_raw(sender);
 }
 
 /// # Safety
@@ -83,6 +95,7 @@ pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
     cpu.get_ram().as_ptr()
 }
 
+/// # Safety
 /// Always called from a separated thread!
 /// It is crucial that we don't borrow our CPU instance
 /// since this function will be called from FFI thread.
@@ -90,12 +103,6 @@ pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
 /// cannot enforce any ownership mechanism)
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
-pub extern "C" fn send_message(message: Message) {
-    MESSAGE_SENDER
-        .get()
-        .unwrap()
-        .lock()
-        .unwrap()
-        .send(message)
-        .unwrap()
+pub unsafe extern "C" fn send_message(sender: *mut Sender<Message>, message: Message) {
+    (*sender).send(message).unwrap()
 }

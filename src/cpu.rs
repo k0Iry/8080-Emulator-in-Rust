@@ -7,17 +7,12 @@ use std::{
 };
 
 #[cfg(not(feature = "cpu_diag"))]
-use std::sync::{
-    mpsc::{channel, Receiver, Sender},
-    Mutex, OnceLock,
-};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 #[cfg(not(feature = "cpu_diag"))]
-pub static MESSAGE_SENDER: OnceLock<Mutex<Sender<Message>>> = OnceLock::new();
+use crate::IoCallbacks;
 
-use crate::{
-    condition_codes::ConditionCodes, IoCallbacks, MemoryOutOfBounds, Result, CLOCK_CYCLES,
-};
+use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result, CLOCK_CYCLES};
 
 #[cfg(not(feature = "cpu_diag"))]
 use crate::Message;
@@ -36,6 +31,7 @@ pub struct Cpu8080 {
     reg_l: u8,
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
+    #[cfg(not(feature = "cpu_diag"))]
     io_callbacks: IoCallbacks,
     #[cfg(not(feature = "cpu_diag"))]
     message_receiver: Receiver<Message>,
@@ -144,11 +140,8 @@ macro_rules! generate_push_and_pop_reg_pair {
 }
 
 impl Cpu8080 {
-    pub fn new(rom: Vec<u8>, ram: Vec<u8>, io_callbacks: IoCallbacks) -> Self {
-        #[cfg(not(feature = "cpu_diag"))]
-        let (message_sender, message_receiver) = channel();
-        #[cfg(not(feature = "cpu_diag"))]
-        MESSAGE_SENDER.set(Mutex::new(message_sender)).unwrap();
+    #[cfg(feature = "cpu_diag")]
+    pub fn cpudiag_new(rom: Vec<u8>, ram: Vec<u8>) -> Self {
         Cpu8080 {
             reg_a: 0,
             reg_b: 0,
@@ -163,10 +156,34 @@ impl Cpu8080 {
             ram,
             conditon_codes: ConditionCodes::default(),
             interrupt_enabled: false,
-            io_callbacks,
-            #[cfg(not(feature = "cpu_diag"))]
-            message_receiver,
         }
+    }
+
+    #[cfg(not(feature = "cpu_diag"))]
+    pub fn new(rom: Vec<u8>, ram: Vec<u8>, io_callbacks: IoCallbacks) -> (Self, Sender<Message>) {
+        #[cfg(not(feature = "cpu_diag"))]
+        let (message_sender, message_receiver) = channel();
+        (
+            Cpu8080 {
+                reg_a: 0,
+                reg_b: 0,
+                reg_c: 0,
+                reg_d: 0,
+                reg_e: 0,
+                reg_h: 0,
+                reg_l: 0,
+                sp: 0,
+                pc: 0,
+                rom,
+                ram,
+                conditon_codes: ConditionCodes::default(),
+                interrupt_enabled: false,
+                io_callbacks,
+                #[cfg(not(feature = "cpu_diag"))]
+                message_receiver,
+            },
+            message_sender,
+        )
     }
 
     fn add(&mut self, reg: u8) {
@@ -978,14 +995,20 @@ impl Cpu8080 {
     }
 
     fn output(&mut self) -> Result<()> {
-        let dev_no = self.load_d8_operand()?;
-        (self.io_callbacks.output)(dev_no, self.reg_a);
+        #[cfg(not(feature = "cpu_diag"))]
+        {
+            let dev_no = self.load_d8_operand()?;
+            (self.io_callbacks.output)(dev_no, self.reg_a);
+        }
         Ok(())
     }
 
     fn input(&mut self) -> Result<()> {
-        let dev_no = self.load_d8_operand()?;
-        self.reg_a = (self.io_callbacks.input)(dev_no);
+        #[cfg(not(feature = "cpu_diag"))]
+        {
+            let dev_no = self.load_d8_operand()?;
+            self.reg_a = (self.io_callbacks.input)(dev_no);
+        }
         Ok(())
     }
 
@@ -1046,18 +1069,13 @@ impl Cpu8080 {
 }
 
 #[cfg(test)]
+#[cfg(feature = "cpu_diag")]
 mod tests {
     use super::*;
 
     #[test]
     fn cpu_opcode_tests() {
-        pub extern "C" fn input(port: u8) -> u8 {
-            port
-        }
-        pub extern "C" fn output(port: u8, value: u8) {
-            println!("{port}, {value}")
-        }
-        let mut cpu = Cpu8080::new(vec![0; 0], vec![0; 0], IoCallbacks { input, output });
+        let mut cpu = Cpu8080::cpudiag_new(vec![0; 0], vec![0; 0]);
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;

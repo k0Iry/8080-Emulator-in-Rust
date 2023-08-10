@@ -19,7 +19,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --features "cpu_diag" --verbose
     - name: Run cpu diagnosis
       run: cargo run --features="cpu_diag"
     - name: Install targets

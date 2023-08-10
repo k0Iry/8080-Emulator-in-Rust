@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use i8080emulator::{Cpu8080, IoCallbacks, Result};
+use i8080emulator::{Cpu8080, Result};
 
 fn main() -> Result<()> {
     let cpudiag_prog = Path::new(env!("CARGO_MANIFEST_DIR")).join("diagnosis_program/cpudiag");
@@ -13,13 +13,7 @@ fn main() -> Result<()> {
     let bytes = BufReader::new(File::open(cpudiag_prog)?).bytes();
     let rom = bytes.collect::<std::result::Result<Vec<u8>, std::io::Error>>()?;
     let ram = vec![0; 0x200];
-    pub extern "C" fn input(port: u8) -> u8 {
-        port
-    }
-    pub extern "C" fn output(port: u8, value: u8) {
-        println!("{port}, {value}")
-    }
-    let mut cpu = Cpu8080::new(rom, ram, IoCallbacks { input, output });
+    let mut cpu = Cpu8080::cpudiag_new(rom, ram);
     cpu.run()?;
     Ok(())
 }
