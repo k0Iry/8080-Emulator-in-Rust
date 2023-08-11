@@ -80,7 +80,7 @@ pub unsafe extern "C" fn new_cpu_instance(
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
 pub unsafe extern "C" fn run(cpu: *mut Cpu8080, sender: *mut Sender<Message>) {
-    let _ = Box::from_raw(cpu).run();
+    Box::from_raw(cpu).run().unwrap();
     let _ = Box::from_raw(sender);
 }
 

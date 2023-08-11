@@ -590,7 +590,7 @@ impl Cpu8080 {
     }
 
     fn execute(&mut self) -> Result<u64> {
-        let opcode = self.load_byte_from_memory(self.pc.into())?;
+        let opcode = *self.rom.get(self.pc as usize).ok_or(MemoryOutOfBounds)?;
         #[cfg(feature = "cpu_diag")]
         if self.pc == 5 {
             self.call_bdos()?;
