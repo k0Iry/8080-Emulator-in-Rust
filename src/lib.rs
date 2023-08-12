@@ -5,7 +5,7 @@ mod errors;
 
 #[cfg(not(feature = "cpu_diag"))]
 use std::{
-    ffi::{c_char, CStr},
+    ffi::{c_char, c_void, CStr},
     fs::File,
     io::{BufReader, Read},
     path::PathBuf,
@@ -28,9 +28,9 @@ pub use clock_cycles::cycles::CLOCK_CYCLES;
 pub struct IoCallbacks {
     /// IN port, pass port number back to app
     /// set the calculated result back to reg_a
-    pub input: extern "C" fn(port: u8) -> u8,
+    pub input: extern "C" fn(io_object: *const c_void, port: u8) -> u8,
     /// OUT port value, pass port & value back to app
-    pub output: extern "C" fn(port: u8, value: u8),
+    pub output: extern "C" fn(io_object: *const c_void, port: u8, value: u8),
 }
 
 #[cfg(not(feature = "cpu_diag"))]
@@ -61,6 +61,7 @@ pub unsafe extern "C" fn new_cpu_instance(
     rom_path: *const c_char,
     ram_size: usize,
     callbacks: IoCallbacks,
+    io_object: *const c_void,
 ) -> CpuSender {
     let rom_path = CStr::from_ptr(rom_path);
     let rom_path = PathBuf::from_str(rom_path.to_str().unwrap()).unwrap();
@@ -68,7 +69,8 @@ pub unsafe extern "C" fn new_cpu_instance(
         .bytes()
         .collect::<std::result::Result<Vec<u8>, std::io::Error>>()
         .unwrap();
-    let (cpu, sender) = Cpu8080::new(rom, vec![0; ram_size], callbacks);
+    let (cpu, sender) = Cpu8080::new(rom, vec![0; ram_size], callbacks, io_object);
+    println!("io_object address: {:?}", io_object);
     CpuSender {
         cpu: Box::into_raw(Box::new(cpu)),
         sender: Box::into_raw(Box::new(sender)),
