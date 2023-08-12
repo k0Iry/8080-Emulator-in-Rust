@@ -34,11 +34,11 @@ typedef struct IoCallbacks {
    * IN port, pass port number back to app
    * set the calculated result back to reg_a
    */
-  uint8_t (*input)(uint8_t port);
+  uint8_t (*input)(const void *io_object, uint8_t port);
   /**
    * OUT port value, pass port & value back to app
    */
-  void (*output)(uint8_t port, uint8_t value);
+  void (*output)(const void *io_object, uint8_t port, uint8_t value);
 } IoCallbacks;
 
 /**
@@ -48,7 +48,8 @@ typedef struct IoCallbacks {
  */
 struct CpuSender new_cpu_instance(const char *rom_path,
                                   uintptr_t ram_size,
-                                  struct IoCallbacks callbacks);
+                                  struct IoCallbacks callbacks,
+                                  const void *io_object);
 
 /**
  * # Safety

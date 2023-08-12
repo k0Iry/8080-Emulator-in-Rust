@@ -7,7 +7,10 @@ use std::{
 };
 
 #[cfg(not(feature = "cpu_diag"))]
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::{
+    ffi::c_void,
+    sync::mpsc::{channel, Receiver, Sender},
+};
 
 #[cfg(not(feature = "cpu_diag"))]
 use crate::{IoCallbacks, Message};
@@ -28,6 +31,8 @@ pub struct Cpu8080 {
     reg_l: u8,
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
+    #[cfg(not(feature = "cpu_diag"))]
+    io_object: *const c_void,
     #[cfg(not(feature = "cpu_diag"))]
     io_callbacks: IoCallbacks,
     #[cfg(not(feature = "cpu_diag"))]
@@ -157,7 +162,12 @@ impl Cpu8080 {
     }
 
     #[cfg(not(feature = "cpu_diag"))]
-    pub fn new(rom: Vec<u8>, ram: Vec<u8>, io_callbacks: IoCallbacks) -> (Self, Sender<Message>) {
+    pub fn new(
+        rom: Vec<u8>,
+        ram: Vec<u8>,
+        io_callbacks: IoCallbacks,
+        io_object: *const c_void,
+    ) -> (Self, Sender<Message>) {
         #[cfg(not(feature = "cpu_diag"))]
         let (message_sender, message_receiver) = channel();
         (
@@ -173,6 +183,7 @@ impl Cpu8080 {
                 pc: 0,
                 rom,
                 ram,
+                io_object,
                 conditon_codes: ConditionCodes::default(),
                 interrupt_enabled: false,
                 io_callbacks,
@@ -995,7 +1006,7 @@ impl Cpu8080 {
         #[cfg(not(feature = "cpu_diag"))]
         {
             let dev_no = self.load_d8_operand()?;
-            (self.io_callbacks.output)(dev_no, self.reg_a);
+            (self.io_callbacks.output)(self.io_object, dev_no, self.reg_a);
         }
         Ok(())
     }
@@ -1004,7 +1015,7 @@ impl Cpu8080 {
         #[cfg(not(feature = "cpu_diag"))]
         {
             let dev_no = self.load_d8_operand()?;
-            self.reg_a = (self.io_callbacks.input)(dev_no);
+            self.reg_a = (self.io_callbacks.input)(self.io_object, dev_no);
         }
         Ok(())
     }
