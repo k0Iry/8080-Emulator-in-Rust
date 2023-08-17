@@ -77,7 +77,10 @@ pub unsafe extern "C" fn new_cpu_instance(
 }
 
 /// # Safety
-/// This function should be safe
+/// This function should be safe to start a run loop.
+/// Send a `Shutdown` message can break the loop, so 
+/// that the CPU and the Sender will be dropped, this is
+/// the only way to release the resources to the system.
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
 pub unsafe extern "C" fn run(cpu: *mut Cpu8080, sender: *mut Sender<Message>) {
@@ -86,7 +89,7 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080, sender: *mut Sender<Message>) {
 }
 
 /// # Safety
-/// This function should be safe for accessing video ram
+/// This function should be safe for accessing video ram.
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
 pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
@@ -95,11 +98,8 @@ pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
 }
 
 /// # Safety
-/// Always called from a separated thread!
-/// It is crucial that we don't borrow our CPU instance
-/// since this function will be called from FFI thread.
-/// (e.g. threads spawned by Swift language where we
-/// cannot enforce any ownership mechanism)
+/// Sender needs to be present(not dropped) for
+/// sending the messages to the CPU instance.
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
 pub unsafe extern "C" fn send_message(sender: *mut Sender<Message>, message: Message) {

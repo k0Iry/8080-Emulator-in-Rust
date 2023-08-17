@@ -53,22 +53,22 @@ struct CpuSender new_cpu_instance(const char *rom_path,
 
 /**
  * # Safety
- * This function should be safe
+ * This function should be safe to start a run loop.
+ * Send a `Shutdown` message can break the loop, so
+ * that the CPU and the Sender will be dropped, this is
+ * the only way to release the resources to the system.
  */
 void run(struct Cpu8080 *cpu, void *sender);
 
 /**
  * # Safety
- * This function should be safe for accessing video ram
+ * This function should be safe for accessing video ram.
  */
 const uint8_t *get_ram(struct Cpu8080 *cpu);
 
 /**
  * # Safety
- * Always called from a separated thread!
- * It is crucial that we don't borrow our CPU instance
- * since this function will be called from FFI thread.
- * (e.g. threads spawned by Swift language where we
- * cannot enforce any ownership mechanism)
+ * Sender needs to be present(not dropped) for
+ * sending the messages to the CPU instance.
  */
 void send_message(void *sender, struct Message message);

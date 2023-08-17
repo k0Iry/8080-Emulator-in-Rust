@@ -1,17 +1,17 @@
-Using Rust to implement a full Intel 8080 CPU emulator.
+A full Intel 8080 CPU emulator in Rust.
 
-To verify if the emulator works well, run *cpudiag program under path diagnosis_program/*. I also modified the assembly to avoid the need of writing to ROM.
+To verify if the emulator works well, run *cpudiag program under diagnosis_program/*. The program was modified to avoid the need of writing to ROM.
 
-This library is intended to be reused on different platforms: macOS, iOS, Android and (if possible) Web.
+This library is intended to be reusable on different platforms: macOS, iOS, Android and (if possible) Web.
 
 The FFI design is meant to be easy to understand and use.
 
-The most important part of this library is to give you an instance of the CPU representative, within which all the functions(CPU, RAM, IO) are provided.
+The most important part of this library is to give you a representative of CPU, within which all the functions(CPU, RAM, IO) are provided. Apart from this, a channel is created for the communications between CPU and outside world, CPU owns a message receiver, and the corresponding message sender is exposed to the outside world for use.
 
-If we take a look at the interfaces in *emulator.h* header file, we can see:
-- `Cpu8080` opaque struct, we obtain a pointer to it on app platforms and pass it back to this lib for interpretation. e.g. see `run` method
-- `IoCallbacks` struct, as the name implies, this is for IO interaction, e.g. we need to read from/write to peripheral devices, every time an IO request from CPU, we need a way to get back to our devices. IO interfaces normally depend on the actual hardware, so you can pass an object reference (e.g. an opaque pointer `const void *io_object`) bounded with IO models and let CPU pass them back while dealing with input/output IO. This can be helpful if you want to run multiple games with different hardware specifications under same app process.
-- A message channel for deliverying messages:
+If we take a look at *emulator.h* header file, we can see:
+- `Cpu8080` opaque struct, we obtain a reference of this and pass it back for interpretation. e.g. see `run` method
+- `IoCallbacks`, this is for IO interaction, e.g. we need to read from/write to peripheral devices, we use this way to get back to our devices. IO interfaces normally depend on the actual hardware, so you can pass an object (e.g. an opaque pointer `const void *io_object`) representing your specific IO models. This can be helpful if you want to run multiple games with different hardware specifications under same app process.
+- A message sender for deliverying messages pre-defined:
     - Interrupt, we simulate a way to receive interrupts from the outside world, the interrupts always happen asynchronously, a mpsc channel can be used for this purpose, and CPU is the receiver, the sender should be owned by the platforms.
     - Pause/resume control signal, similar to handle interrupts, but with extra cares:
         - we check the pausing signal in a non-blocking manner (active state)
