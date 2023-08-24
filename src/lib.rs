@@ -78,7 +78,7 @@ pub unsafe extern "C" fn new_cpu_instance(
 
 /// # Safety
 /// This function should be safe to start a run loop.
-/// Send a `Shutdown` message can break the loop, so 
+/// Send a `Shutdown` message can break the loop, so
 /// that the CPU and the Sender will be dropped, this is
 /// the only way to release the resources to the system.
 #[cfg(not(feature = "cpu_diag"))]
@@ -93,8 +93,7 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080, sender: *mut Sender<Message>) {
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
 pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
-    let cpu = &*cpu;
-    cpu.get_ram().as_ptr()
+    (*cpu).get_ram().as_ptr()
 }
 
 /// # Safety
