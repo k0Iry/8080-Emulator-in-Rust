@@ -64,11 +64,11 @@ void run(struct Cpu8080 *cpu, void *sender);
  * # Safety
  * This function should be safe for accessing video ram.
  */
-const uint8_t *get_ram(struct Cpu8080 *cpu);
+const uint8_t *get_ram(const struct Cpu8080 *cpu);
 
 /**
  * # Safety
  * Sender needs to be present(not dropped) for
  * sending the messages to the CPU instance.
  */
-void send_message(void *sender, struct Message message);
+void send_message(const void *sender, struct Message message);

@@ -92,7 +92,7 @@ pub unsafe extern "C" fn run(cpu: *mut Cpu8080, sender: *mut Sender<Message>) {
 /// This function should be safe for accessing video ram.
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
-pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
+pub unsafe extern "C" fn get_ram(cpu: *const Cpu8080) -> *const u8 {
     (*cpu).get_ram().as_ptr()
 }
 
@@ -101,6 +101,6 @@ pub unsafe extern "C" fn get_ram(cpu: *mut Cpu8080) -> *const u8 {
 /// sending the messages to the CPU instance.
 #[cfg(not(feature = "cpu_diag"))]
 #[no_mangle]
-pub unsafe extern "C" fn send_message(sender: *mut Sender<Message>, message: Message) {
+pub unsafe extern "C" fn send_message(sender: *const Sender<Message>, message: Message) {
     (*sender).send(message).unwrap()
 }
