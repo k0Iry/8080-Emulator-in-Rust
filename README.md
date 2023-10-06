@@ -23,6 +23,13 @@ If we take a look at *emulator.h* header file, we can see:
 To use this library for app development, you can download the library(*libi8080emulator.a*) and header file(*emulator.h*) from the releases page and add them in your project. P.S. **Currently the releases only contain macOS(both x64 and aarch64) and iOS targets.**
 
 If you can't find the target in the releases, you need to clone the source code and build it on your own, e.g. android (`aarch64-linux-android, arm-linux-androideabi` and etc...).
+### Usage
+- Load the ROM, allocate the runtime memory and provide IO callback functions by calling `new_cpu_instance`.
+- Start the emulation by calling `run`, this function will not return unless:
+    - You send a `Shutdown` message, in this case all resources will be freed, e.g. runtime memory, ROM memory and the message sender
+    - OR an exception happens, in this case, please open an issue.
+- `get_ram` will allow you to have the access to read the runtime memory, within which you can access video RAM.
+- Call `send_message` to send messages including interrupts, control messages like: pause, resume, shutdown and reload.
 
 ## Apps powered by this library
 - [Space Invaders on macOS + iOS](https://github.com/k0Iry/SpaceInvaders)
