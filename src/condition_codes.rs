@@ -35,14 +35,14 @@ impl Display for ConditionCodes {
 }
 
 macro_rules! generate_bit_operations {
-    ( $( ($set:ident, $reset:ident, $check:ident, $bit_loc:expr) ),* ) => {
+    ( $( ($set:ident, $is_set:ident, $check:ident, $bit_loc:expr) ),* ) => {
         $(
-            pub fn $set(&mut self) {
-                self.bitor_assign(1 << $bit_loc)
-            }
-
-            pub fn $reset(&mut self) {
-                self.bitand_assign(!(1 << $bit_loc))
+            pub fn $set(&mut self, $is_set: bool) {
+                if ($is_set) {
+                    self.bitor_assign(1 << $bit_loc)
+                } else {
+                    self.bitand_assign(!(1 << $bit_loc))
+                }
             }
 
             pub fn $check(&self) -> bool {
@@ -56,10 +56,10 @@ macro_rules! generate_bit_operations {
 /// N/A N/A N/A AC  P  Z   S   C
 impl ConditionCodes {
     generate_bit_operations![
-        (set_carry, reset_carry, is_carry_set, 0),
-        (set_sign, reset_sign, is_sign_set, 1),
-        (set_zero, reset_zero, is_zero_set, 2),
-        (set_parity, reset_parity, is_parity_set, 3),
-        (set_aux_carry, reset_aux_carry, is_aux_carry_set, 4)
+        (set_carry, is_carry, is_carry_set, 0),
+        (set_sign, is_sign, is_sign_set, 1),
+        (set_zero, is_zero, is_zero_set, 2),
+        (set_parity, is_parity, is_parity_set, 3),
+        (set_aux_carry, is_aux_carry, is_aux_carry_set, 4)
     ];
 }

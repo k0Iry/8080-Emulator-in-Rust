@@ -196,13 +196,13 @@ impl Cpu8080 {
 
     fn add(&mut self, reg: u8) {
         let result = self.set_condition_bits(self.reg_a.into(), reg.into());
-        self.set_carry(result > u8::MAX.into());
+        self.conditon_codes.set_carry(result > u8::MAX.into());
         self.reg_a = result as u8;
     }
 
     fn sub(&mut self, reg: u8) {
         let result = self.set_condition_bits(self.reg_a.into(), reg.wrapping_neg().into());
-        self.set_carry(self.reg_a < reg);
+        self.conditon_codes.set_carry(self.reg_a < reg);
         self.reg_a = result as u8;
     }
 
@@ -213,7 +213,7 @@ impl Cpu8080 {
             0
         };
         let result = self.set_condition_bits(self.reg_a.into(), reg as u16 + carry);
-        self.set_carry(result > u8::MAX.into());
+        self.conditon_codes.set_carry(result > u8::MAX.into());
         self.reg_a = result as u8;
     }
 
@@ -227,7 +227,7 @@ impl Cpu8080 {
             self.reg_a.into(),
             reg.wrapping_neg() as u16 + carry.wrapping_neg() as u16,
         );
-        self.set_carry(self.reg_a < reg);
+        self.conditon_codes.set_carry(self.reg_a < reg);
         self.reg_a = result as u8;
     }
 
@@ -235,81 +235,46 @@ impl Cpu8080 {
         // Z, S, P, AC
         let result = value1 + value2;
         let lsb = result as u8;
-        self.set_zero(lsb == 0);
-        self.set_sign(lsb >= 0x80);
-        self.set_parity(lsb.count_ones() % 2 == 0);
+        self.conditon_codes.set_zero(lsb == 0);
+        self.conditon_codes.set_sign(lsb >= 0x80);
+        self.conditon_codes.set_parity(lsb.count_ones() % 2 == 0);
         let aux_carry = result & 0xf;
-        if aux_carry < (value1 & 0xf) && aux_carry < (value2 & 0xf) {
-            self.conditon_codes.set_aux_carry()
-        } else {
-            self.conditon_codes.reset_aux_carry()
-        }
+        let is_aux_carry = aux_carry < (value1 & 0xf) && aux_carry < (value2 & 0xf);
+        self.conditon_codes.set_aux_carry(is_aux_carry);
         result
-    }
-
-    fn set_zero(&mut self, is_zero: bool) {
-        if is_zero {
-            self.conditon_codes.set_zero()
-        } else {
-            self.conditon_codes.reset_zero()
-        }
-    }
-
-    fn set_parity(&mut self, is_parity_set: bool) {
-        if is_parity_set {
-            self.conditon_codes.set_parity()
-        } else {
-            self.conditon_codes.reset_parity()
-        }
-    }
-
-    fn set_sign(&mut self, is_sign_set: bool) {
-        if is_sign_set {
-            self.conditon_codes.set_sign()
-        } else {
-            self.conditon_codes.reset_sign()
-        }
-    }
-
-    fn set_carry(&mut self, is_carry: bool) {
-        if is_carry {
-            self.conditon_codes.set_carry();
-        } else {
-            self.conditon_codes.reset_carry();
-        }
     }
 
     fn dad(&mut self, value: u16) {
         let hl = u16::from_le_bytes([self.reg_l, self.reg_h]) as u32;
         let hl = hl + value as u32;
         [self.reg_h, self.reg_l] = (hl as u16).to_be_bytes();
-        self.set_carry(hl > u16::MAX.into());
+        self.conditon_codes.set_carry(hl > u16::MAX.into());
     }
 
     fn rlc(&mut self) {
         self.reg_a = self.reg_a.rotate_left(1);
         let carry = self.reg_a & 0x1;
-        self.set_carry(carry == 1);
+        self.conditon_codes.set_carry(carry == 1);
     }
 
     fn rrc(&mut self) {
         let carry = self.reg_a & 0x1;
         self.reg_a = self.reg_a.rotate_right(1);
-        self.set_carry(carry == 1);
+        self.conditon_codes.set_carry(carry == 1);
     }
 
     fn ral(&mut self) {
         let carry = self.reg_a >= 0x80;
         self.reg_a <<= 1;
         self.reg_a |= self.conditon_codes.is_carry_set() as u8;
-        self.set_carry(carry);
+        self.conditon_codes.set_carry(carry);
     }
 
     fn rar(&mut self) {
         let carry = self.reg_a & 0x1;
         self.reg_a >>= 1;
         self.reg_a |= (self.conditon_codes.is_carry_set() as u8) << 7;
-        self.set_carry(carry == 1);
+        self.conditon_codes.set_carry(carry == 1);
     }
 
     /// It is allowed to load content from either ROM or RAM
@@ -421,11 +386,12 @@ impl Cpu8080 {
     }
 
     fn logical_condtion_set(&mut self) {
-        self.set_carry(false); // always reset carry
-        self.set_zero(self.reg_a == 0);
-        self.set_sign(self.reg_a >= 0x80);
-        self.conditon_codes.reset_aux_carry();
-        self.set_parity(self.reg_a.count_ones() % 2 == 0);
+        self.conditon_codes.set_carry(false); // always reset carry
+        self.conditon_codes.set_zero(self.reg_a == 0);
+        self.conditon_codes.set_sign(self.reg_a >= 0x80);
+        self.conditon_codes.set_aux_carry(false);
+        self.conditon_codes
+            .set_parity(self.reg_a.count_ones() % 2 == 0);
     }
 
     fn or(&mut self, value: u8) {
@@ -448,7 +414,7 @@ impl Cpu8080 {
 
     fn cmp(&mut self, value: u8) {
         let _ = self.set_condition_bits(self.reg_a.into(), value.wrapping_neg().into());
-        self.set_carry(self.reg_a < value);
+        self.conditon_codes.set_carry(self.reg_a < value);
     }
 
     fn cmp_m(&mut self) -> Result<()> {
@@ -678,14 +644,16 @@ impl Cpu8080 {
                 let imm = self.load_d8_operand()?;
                 self.store_to_ram(u16::from_le_bytes([self.reg_l, self.reg_h]).into(), imm)?
             }
-            0x37 => self.conditon_codes.set_carry(),
+            0x37 => self.conditon_codes.set_carry(true),
             0x39 => self.dad(self.sp),
             0x3a => self.lda()?,
             0x3b => self.sp -= 1,
             0x3c => self.inr_a(),
             0x3d => self.drc_a(),
             0x3e => self.reg_a = self.load_d8_operand()?,
-            0x3f => self.set_carry(!self.conditon_codes.is_carry_set()),
+            0x3f => self
+                .conditon_codes
+                .set_carry(!self.conditon_codes.is_carry_set()),
             0x41 => self.reg_b = self.reg_c,
             0x42 => self.reg_b = self.reg_d,
             0x43 => self.reg_b = self.reg_e,
@@ -1023,23 +991,20 @@ impl Cpu8080 {
     fn daa(&mut self) {
         if (self.reg_a & 0xf) > 0x9 || self.conditon_codes.is_aux_carry_set() {
             let aux_carry = self.reg_a as u16 + 6;
-            if (aux_carry & 0xf) < 0x6 {
-                self.conditon_codes.set_aux_carry()
-            } else {
-                self.conditon_codes.reset_aux_carry()
-            }
+            self.conditon_codes.set_aux_carry((aux_carry & 0xf) < 0x6);
             self.reg_a = aux_carry as u8;
         }
         if (self.reg_a & 0xf0) > 0x90 || self.conditon_codes.is_carry_set() {
             let result = self.reg_a as u16 + (6u8 << 4) as u16;
             if result > u8::MAX.into() {
-                self.conditon_codes.set_carry()
+                self.conditon_codes.set_carry(true)
             }
             self.reg_a = result as u8;
         }
-        self.set_zero(self.reg_a == 0);
-        self.set_sign(self.reg_a >= 0x80);
-        self.set_parity(self.reg_a.count_ones() % 2 == 0);
+        self.conditon_codes.set_zero(self.reg_a == 0);
+        self.conditon_codes.set_sign(self.reg_a >= 0x80);
+        self.conditon_codes
+            .set_parity(self.reg_a.count_ones() % 2 == 0);
     }
 
     fn ret(&mut self) -> Result<()> {
@@ -1087,7 +1052,7 @@ mod tests {
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;
-        cpu.conditon_codes.reset_carry();
+        cpu.conditon_codes.set_carry(false);
         cpu.ral();
         assert!(cpu.conditon_codes.is_carry_set());
         assert_eq!(cpu.reg_a, 0x6a);
@@ -1100,7 +1065,7 @@ mod tests {
         cpu.reg_c = 0x9f;
         cpu.reg_h = 0xa1;
         cpu.reg_l = 0x7b;
-        cpu.conditon_codes.reset_carry();
+        cpu.conditon_codes.set_carry(false);
         cpu.dad(u16::from_le_bytes([cpu.reg_c, cpu.reg_b]));
         assert_eq!(cpu.reg_h, 0xd5);
         assert_eq!(cpu.reg_l, 0x1a);
@@ -1108,16 +1073,16 @@ mod tests {
 
         // // test DAA
         cpu.reg_a = 0x9b;
-        cpu.conditon_codes.reset_carry();
-        cpu.conditon_codes.reset_aux_carry();
+        cpu.conditon_codes.set_carry(false);
+        cpu.conditon_codes.set_aux_carry(false);
         cpu.daa();
         assert_eq!(cpu.reg_a, 0x1);
         assert!(cpu.conditon_codes.is_carry_set());
         assert!(cpu.conditon_codes.is_aux_carry_set());
 
         cpu.reg_a = 0x88;
-        cpu.conditon_codes.reset_carry();
-        cpu.conditon_codes.reset_aux_carry();
+        cpu.conditon_codes.set_carry(false);
+        cpu.conditon_codes.set_aux_carry(false);
         cpu.add(cpu.reg_a);
         assert!(cpu.conditon_codes.is_carry_set());
         assert!(cpu.conditon_codes.is_aux_carry_set());
