@@ -3,7 +3,7 @@ use std::{
     mem,
     ops::{Deref, DerefMut},
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 #[cfg(not(feature = "cpu_diag"))]
@@ -497,10 +497,7 @@ impl Cpu8080 {
         // 2Mhz => 2 circles per microsecond
         // if we run as 120Hz, 1 / 120 => 8333 microseconds
         // we supposed to be able to run 16666 circles
-        let mut start = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros();
+        let mut start = Instant::now();
         let mut circles = 0;
         #[cfg(not(feature = "cpu_diag"))]
         let mut pause = true;
@@ -544,19 +541,12 @@ impl Cpu8080 {
             }
             circles += self.execute()?;
             if circles >= 16666 {
-                let time_spent = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_micros()
-                    - start;
+                let time_spent = start.elapsed().as_micros();
                 if time_spent < circles as u128 / 2 {
                     thread::sleep(Duration::from_micros(circles / 2 - time_spent as u64))
                 }
                 circles = 0;
-                start = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_micros();
+                start = Instant::now();
             }
         }
         Ok(())
