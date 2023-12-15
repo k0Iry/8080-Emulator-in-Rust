@@ -168,7 +168,6 @@ impl Cpu8080 {
         io_callbacks: IoCallbacks,
         io_object: *const c_void,
     ) -> (Self, Sender<Message>) {
-        #[cfg(not(feature = "cpu_diag"))]
         let (message_sender, message_receiver) = channel();
         (
             Cpu8080 {
@@ -187,7 +186,6 @@ impl Cpu8080 {
                 conditon_codes: ConditionCodes::default(),
                 interrupt_enabled: false,
                 io_callbacks,
-                #[cfg(not(feature = "cpu_diag"))]
                 message_receiver,
             },
             message_sender,
