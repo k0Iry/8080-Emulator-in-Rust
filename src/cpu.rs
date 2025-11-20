@@ -235,7 +235,7 @@ impl Cpu8080 {
         let lsb = result as u8;
         self.conditon_codes.set_zero(lsb == 0);
         self.conditon_codes.set_sign(lsb >= 0x80);
-        self.conditon_codes.set_parity(lsb.count_ones() % 2 == 0);
+        self.conditon_codes.set_parity(lsb.count_ones().is_multiple_of(2));
         let aux_carry = result & 0xf;
         let is_aux_carry = aux_carry < (value1 & 0xf) && aux_carry < (value2 & 0xf);
         self.conditon_codes.set_aux_carry(is_aux_carry);
@@ -389,7 +389,7 @@ impl Cpu8080 {
         self.conditon_codes.set_sign(self.reg_a >= 0x80);
         self.conditon_codes.set_aux_carry(false);
         self.conditon_codes
-            .set_parity(self.reg_a.count_ones() % 2 == 0);
+            .set_parity(self.reg_a.count_ones().is_multiple_of(2));
     }
 
     fn or(&mut self, value: u8) {
@@ -992,7 +992,7 @@ impl Cpu8080 {
         self.conditon_codes.set_zero(self.reg_a == 0);
         self.conditon_codes.set_sign(self.reg_a >= 0x80);
         self.conditon_codes
-            .set_parity(self.reg_a.count_ones() % 2 == 0);
+            .set_parity(self.reg_a.count_ones().is_multiple_of(2));
     }
 
     fn ret(&mut self) -> Result<()> {
