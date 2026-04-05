@@ -25,16 +25,16 @@ jobs:
     - name: Install targets
       run: rustup target add aarch64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
     - name: Build for x86_64 macOS
-      run: cargo build --lib --target=x86_64-apple-darwin --release --verbose
+      run: cargo build -p i8080emulator-ffi --target=x86_64-apple-darwin --release --verbose
     - name: Build for Apple Silicon macOS
-      run: cargo build --lib --target=aarch64-apple-darwin --release --verbose
+      run: cargo build -p i8080emulator-ffi --target=aarch64-apple-darwin --release --verbose
     - name: Build for iOS
-      run: cargo build --lib --target=aarch64-apple-ios --release --verbose
+      run: cargo build -p i8080emulator-ffi --target=aarch64-apple-ios --release --verbose
     - name: Zip files
       run: |
-        zip x86_64_darwin.zip target/x86_64-apple-darwin/release/libi8080emulator.a emulator.h
-        zip aarch64_darwin.zip target/aarch64-apple-darwin/release/libi8080emulator.a emulator.h
-        zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator.a emulator.h
+        zip x86_64_darwin.zip target/x86_64-apple-darwin/release/libi8080emulator_ffi.a ffi/include/i8080emulator_ffi.h
+        zip aarch64_darwin.zip target/aarch64-apple-darwin/release/libi8080emulator_ffi.a ffi/include/i8080emulator_ffi.h
+        zip aarch64_ios.zip target/aarch64-apple-ios/release/libi8080emulator_ffi.a ffi/include/i8080emulator_ffi.h
     - name: Generate release tag
       id: tag
       run: |

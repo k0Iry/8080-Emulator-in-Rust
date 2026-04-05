@@ -1,5 +1,5 @@
-use std::{
-    fmt::Display,
+use core::{
+    fmt::{self, Display},
     ops::{BitAnd, BitAndAssign, BitOrAssign, Deref, DerefMut, Shr},
 };
 
@@ -21,7 +21,7 @@ impl DerefMut for ConditionCodes {
 }
 
 impl Display for ConditionCodes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "AC = {}, P = {}, Z = {}, S = {}, C = {}",

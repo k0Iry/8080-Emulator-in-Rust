@@ -1,18 +1,11 @@
-use std::io;
-
 #[derive(Debug)]
 pub struct MemoryOutOfBounds;
 
 #[derive(Debug)]
 pub enum EmulatorErrors {
-    Io(io::Error),
     MemoryOutOfBounds(MemoryOutOfBounds),
-}
-
-impl From<io::Error> for EmulatorErrors {
-    fn from(value: io::Error) -> Self {
-        Self::Io(value)
-    }
+    NoPendingInput,
+    InvalidInterrupt(u8),
 }
 
 impl From<MemoryOutOfBounds> for EmulatorErrors {

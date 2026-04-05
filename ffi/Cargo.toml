@@ -1,0 +1,13 @@
+[package]
+name = "i8080emulator-ffi"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "C ABI wrapper for the i8080emulator core"
+
+[lib]
+name = "i8080emulator_ffi"
+crate-type = ["staticlib", "lib"]
+
+[dependencies]
+i8080emulator = { path = ".." }

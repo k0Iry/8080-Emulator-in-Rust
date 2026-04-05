@@ -19,10 +19,21 @@ doctest = false
 required-features = ["cpu_diag"]
 
 [features]
+default = []
 cpu_diag = []
 
 [lib]
 doctest = false
-crate-type = ["lib", "staticlib"]
+crate-type = ["lib"]
 
 [dependencies]
+
+[workspace]
+members = [".", "ffi"]
+resolver = "2"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

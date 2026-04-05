@@ -1,25 +1,28 @@
-use core::panic;
-use std::{
+use core::{
     mem,
     ops::{Deref, DerefMut},
-    thread,
-    time::{Duration, Instant},
 };
 
-#[cfg(not(feature = "cpu_diag"))]
-use std::{
-    ffi::c_void,
-    sync::mpsc::{channel, Receiver, Sender},
+use crate::{
+    condition_codes::ConditionCodes, Memory, MemoryOutOfBounds, Result, SplitMemory, CLOCK_CYCLES,
 };
 
-#[cfg(not(feature = "cpu_diag"))]
-use crate::{IoCallbacks, Message};
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExecutionState {
+    Continue,
+    Input { port: u8 },
+    Output { port: u8, value: u8 },
+    Halted,
+}
 
-use crate::{condition_codes::ConditionCodes, MemoryOutOfBounds, Result, CLOCK_CYCLES};
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepOutcome {
+    pub cycles: u64,
+    pub state: ExecutionState,
+}
 
-pub struct Cpu8080 {
-    ram: Vec<u8>,
-    rom: Vec<u8>,
+pub struct Cpu8080<M> {
+    memory: M,
     sp: u16,
     pc: u16,
     reg_a: u8,
@@ -31,12 +34,8 @@ pub struct Cpu8080 {
     reg_l: u8,
     conditon_codes: ConditionCodes,
     interrupt_enabled: bool,
-    #[cfg(not(feature = "cpu_diag"))]
-    io_object: *const c_void,
-    #[cfg(not(feature = "cpu_diag"))]
-    io_callbacks: IoCallbacks,
-    #[cfg(not(feature = "cpu_diag"))]
-    message_receiver: Receiver<Message>,
+    halted: bool,
+    pending_input_port: Option<u8>,
 }
 
 macro_rules! generate_move_between_reg_and_memory {
@@ -141,10 +140,25 @@ macro_rules! generate_push_and_pop_reg_pair {
     };
 }
 
-impl Cpu8080 {
+impl<'a> Cpu8080<SplitMemory<'a>> {
+    pub fn new(rom: &'a [u8], ram: &'a mut [u8]) -> Self {
+        Self::with_memory(SplitMemory::new(rom, ram))
+    }
+
     #[cfg(feature = "cpu_diag")]
-    pub fn cpudiag_new(rom: Vec<u8>, ram: Vec<u8>) -> Self {
+    pub fn cpudiag_new(rom: &'a [u8], ram: &'a mut [u8]) -> Self {
+        Self::new(rom, ram)
+    }
+
+    pub fn get_ram(&self) -> &[u8] {
+        self.memory.ram()
+    }
+}
+
+impl<M: Memory> Cpu8080<M> {
+    pub fn with_memory(memory: M) -> Self {
         Cpu8080 {
+            memory,
             reg_a: 0,
             reg_b: 0,
             reg_c: 0,
@@ -154,42 +168,19 @@ impl Cpu8080 {
             reg_l: 0,
             sp: 0,
             pc: 0,
-            rom,
-            ram,
             conditon_codes: ConditionCodes::default(),
             interrupt_enabled: false,
+            halted: false,
+            pending_input_port: None,
         }
     }
 
-    #[cfg(not(feature = "cpu_diag"))]
-    pub fn new(
-        rom: Vec<u8>,
-        ram: Vec<u8>,
-        io_callbacks: IoCallbacks,
-        io_object: *const c_void,
-    ) -> (Self, Sender<Message>) {
-        let (message_sender, message_receiver) = channel();
-        (
-            Cpu8080 {
-                reg_a: 0,
-                reg_b: 0,
-                reg_c: 0,
-                reg_d: 0,
-                reg_e: 0,
-                reg_h: 0,
-                reg_l: 0,
-                sp: 0,
-                pc: 0,
-                rom,
-                ram,
-                io_object,
-                conditon_codes: ConditionCodes::default(),
-                interrupt_enabled: false,
-                io_callbacks,
-                message_receiver,
-            },
-            message_sender,
-        )
+    pub fn memory(&self) -> &M {
+        &self.memory
+    }
+
+    pub fn memory_mut(&mut self) -> &mut M {
+        &mut self.memory
     }
 
     fn add(&mut self, reg: u8) {
@@ -235,7 +226,8 @@ impl Cpu8080 {
         let lsb = result as u8;
         self.conditon_codes.set_zero(lsb == 0);
         self.conditon_codes.set_sign(lsb >= 0x80);
-        self.conditon_codes.set_parity(lsb.count_ones().is_multiple_of(2));
+        self.conditon_codes
+            .set_parity(lsb.count_ones().is_multiple_of(2));
         let aux_carry = result & 0xf;
         let is_aux_carry = aux_carry < (value1 & 0xf) && aux_carry < (value2 & 0xf);
         self.conditon_codes.set_aux_carry(is_aux_carry);
@@ -277,20 +269,15 @@ impl Cpu8080 {
 
     /// It is allowed to load content from either ROM or RAM
     fn load_byte_from_memory(&self, addr: usize) -> Result<u8> {
-        if addr >= self.rom.len() {
-            Ok(*self
-                .ram
-                .get(addr - self.rom.len())
-                .ok_or(MemoryOutOfBounds)?)
-        } else {
-            Ok(*self.rom.get(addr).ok_or(MemoryOutOfBounds)?)
-        }
+        self.memory
+            .read(addr as u16)
+            .ok_or(MemoryOutOfBounds.into())
     }
 
     /// It is only allowed to write to RAM, we shall never write to ROM
     fn store_to_ram(&mut self, addr: usize, value: u8) -> Result<()> {
-        if let Some(content) = self.ram.get_mut(addr - self.rom.len()) {
-            *content = value
+        if !self.memory.write(addr as u16, value) {
+            return Err(MemoryOutOfBounds.into());
         }
         Ok(())
     }
@@ -487,85 +474,91 @@ impl Cpu8080 {
         (load_data_into_reg_pair_h, reg_h, reg_l)
     ];
 
-    pub fn run(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<StepOutcome> {
         #[cfg(feature = "cpu_diag")]
         {
             self.pc = 0x100
         }
-        // 2Mhz => 2 circles per microsecond
-        // if we run as 120Hz, 1 / 120 => 8333 microseconds
-        // we supposed to be able to run 16666 circles
-        let mut start = Instant::now();
-        let mut circles = 0;
-        #[cfg(not(feature = "cpu_diag"))]
-        let mut pause = true;
-        while self.pc < self.rom.len() as u16 {
-            #[cfg(not(feature = "cpu_diag"))]
-            if pause {
-                if let Message::Suspend = self.message_receiver.recv().unwrap() {
-                    pause = false
-                } else {
-                    continue;
-                }
-            } else if let Ok(message) = self.message_receiver.try_recv() {
-                match message {
-                    Message::Suspend => pause = true,
-                    Message::Interrupt {
-                        irq_no,
-                        allow_nested_interrupt,
-                    } => {
-                        if self.interrupt_enabled {
-                            self.rst(irq_no)?;
-                            circles += CLOCK_CYCLES[0xc7_usize] as u64
-                        }
-                        self.interrupt_enabled = allow_nested_interrupt
-                    }
-                    Message::Restart => {
-                        self.ram.fill(0);
-                        self.pc = 0;
-                        self.reg_a = 0;
-                        self.reg_b = 0;
-                        self.reg_c = 0;
-                        self.reg_d = 0;
-                        self.reg_e = 0;
-                        self.reg_h = 0;
-                        self.interrupt_enabled = false;
-                        *self.conditon_codes.deref_mut() = 0;
-                    }
-                    Message::Shutdown => {
-                        break;
-                    }
-                }
-            }
-            circles += self.execute()?;
-            if circles >= 16666 {
-                let time_spent = start.elapsed().as_micros();
-                if time_spent < circles as u128 / 2 {
-                    thread::sleep(Duration::from_micros(circles / 2 - time_spent as u64))
-                }
-                circles = 0;
-                start = Instant::now();
+        loop {
+            let outcome = self.step()?;
+            if !matches!(outcome.state, ExecutionState::Continue) {
+                return Ok(outcome);
             }
         }
+    }
+
+    pub fn step(&mut self) -> Result<StepOutcome> {
+        if let Some(port) = self.pending_input_port {
+            return Ok(StepOutcome {
+                cycles: 0,
+                state: ExecutionState::Input { port },
+            });
+        }
+        if self.halted {
+            self.halted = true;
+            return Ok(StepOutcome {
+                cycles: 0,
+                state: ExecutionState::Halted,
+            });
+        }
+        self.execute()
+    }
+
+    pub fn is_halted(&self) -> bool {
+        self.halted
+    }
+
+    pub fn restart(&mut self) {
+        self.memory.reset_ram();
+        self.pc = 0;
+        self.sp = 0;
+        self.reg_a = 0;
+        self.reg_b = 0;
+        self.reg_c = 0;
+        self.reg_d = 0;
+        self.reg_e = 0;
+        self.reg_h = 0;
+        self.reg_l = 0;
+        self.interrupt_enabled = false;
+        self.halted = false;
+        self.pending_input_port = None;
+        *self.conditon_codes.deref_mut() = 0;
+    }
+
+    pub fn interrupt(&mut self, irq_no: u8, allow_nested_interrupt: bool) -> Result<()> {
+        if self.interrupt_enabled {
+            self.rst(irq_no)?;
+        }
+        self.interrupt_enabled = allow_nested_interrupt;
         Ok(())
     }
 
-    pub fn get_ram(&self) -> &[u8] {
-        &self.ram
+    pub fn provide_input(&mut self, value: u8) -> Result<()> {
+        if self.pending_input_port.is_none() {
+            return Err(crate::EmulatorErrors::NoPendingInput);
+        }
+        self.reg_a = value;
+        self.pending_input_port = None;
+        Ok(())
     }
 
-    fn execute(&mut self) -> Result<u64> {
-        let opcode = *self.rom.get(self.pc as usize).ok_or(MemoryOutOfBounds)?;
+    fn execute(&mut self) -> Result<StepOutcome> {
+        let opcode = self.load_byte_from_memory(self.pc as usize)?;
         #[cfg(feature = "cpu_diag")]
         if self.pc == 5 {
             self.call_bdos()?;
             self.pc -= 1;
         } else if self.pc == 0 {
-            println!("RE-ENTRY TO CP/M WARM BOOT, exiting...");
-            std::process::exit(0)
+            std::println!("RE-ENTRY TO CP/M WARM BOOT, exiting...");
+            self.halted = true;
+            return Ok(StepOutcome {
+                cycles: 0,
+                state: ExecutionState::Halted,
+            });
         }
 
         self.pc += 1;
+        let mut state = ExecutionState::Continue;
         match opcode {
             0x00 | 0x08 | 0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0x40 | 0x49 | 0x52 | 0x5b
             | 0x64 | 0x6d | 0x7f | 0xcb | 0xd9 | 0xdd | 0xed | 0xfd => (),
@@ -690,7 +683,10 @@ impl Cpu8080 {
             0x73 => self.store_reg_e_to_ram()?,
             0x74 => self.store_reg_h_to_ram()?,
             0x75 => self.store_reg_l_to_ram()?,
-            0x76 => std::process::exit(1), // HLT
+            0x76 => {
+                self.halted = true;
+                state = ExecutionState::Halted;
+            }
             0x77 => self.store_reg_a_to_ram()?,
             0x78 => self.reg_a = self.reg_b,
             0x79 => self.reg_a = self.reg_c,
@@ -781,14 +777,14 @@ impl Cpu8080 {
             0xd0 => self.ret_on_carry(!self.conditon_codes.is_carry_set())?,
             0xd1 => self.pop_d()?,
             0xd2 => self.jump_on_carry(!self.conditon_codes.is_carry_set())?,
-            0xd3 => self.output()?,
+            0xd3 => state = self.output()?,
             0xd4 => self.call_on_carry(!self.conditon_codes.is_carry_set())?,
             0xd5 => self.push_d()?,
             0xd6 => self.sui()?,
             0xd7 => self.rst(2)?,
             0xd8 => self.ret_on_carry(self.conditon_codes.is_carry_set())?,
             0xda => self.jump_on_carry(self.conditon_codes.is_carry_set())?,
-            0xdb => self.input()?,
+            0xdb => state = self.input()?,
             0xdc => self.call_on_carry(self.conditon_codes.is_carry_set())?,
             0xde => self.sbi()?,
             0xdf => self.rst(3)?,
@@ -823,7 +819,10 @@ impl Cpu8080 {
             0xfe => self.cpi()?,
             0xff => self.rst(7)?,
         }
-        Ok(CLOCK_CYCLES[opcode as usize] as u64)
+        Ok(StepOutcome {
+            cycles: CLOCK_CYCLES[opcode as usize] as u64,
+            state,
+        })
     }
 
     fn load_stack_pointer_from_operand(&mut self) -> Result<()> {
@@ -857,14 +856,14 @@ impl Cpu8080 {
     }
 
     fn xthl(&mut self) {
-        mem::swap(
-            &mut self.ram[self.sp as usize - self.rom.len()],
-            &mut self.reg_l,
-        );
-        mem::swap(
-            &mut self.ram[(self.sp + 1) as usize - self.rom.len()],
-            &mut self.reg_h,
-        );
+        let lo_addr = self.sp as usize;
+        let hi_addr = (self.sp + 1) as usize;
+        let mem_lo = self.load_byte_from_memory(lo_addr).unwrap_or(0);
+        let mem_hi = self.load_byte_from_memory(hi_addr).unwrap_or(0);
+        let _ = self.store_to_ram(lo_addr, self.reg_l);
+        let _ = self.store_to_ram(hi_addr, self.reg_h);
+        self.reg_l = mem_lo;
+        self.reg_h = mem_hi;
     }
 
     fn xchg(&mut self) {
@@ -916,9 +915,11 @@ impl Cpu8080 {
         let old_pc = self.pc - 1;
         self.pc = u16::from_le_bytes(self.load_d16_operand()?);
         #[cfg(feature = "cpu_diag")]
-        println!(
+        std::println!(
             "call into {:#06x} from {:#06x}, sp = {:#06x}",
-            self.pc, old_pc, self.sp
+            self.pc,
+            old_pc,
+            self.sp
         );
 
         Ok(())
@@ -928,14 +929,17 @@ impl Cpu8080 {
     fn call_bdos(&mut self) -> Result<()> {
         let msg_addr = (u16::from_le_bytes([self.reg_e, self.reg_d]) + 3) as usize; // skipping 0CH,0DH,0AH
         assert_eq!(msg_addr, 0x0178);
-        let msg: Vec<u8> = self
-            .rom
-            .iter()
-            .skip(msg_addr)
-            .take_while(|&&c| c as char != '$')
-            .map(|c| c.to_owned())
-            .collect();
-        println!("{}", String::from_utf8_lossy(&msg));
+        let mut msg = std::string::String::new();
+        let mut current = msg_addr;
+        loop {
+            let byte = self.load_byte_from_memory(current)?;
+            if byte as char == '$' {
+                break;
+            }
+            msg.push(byte as char);
+            current += 1;
+        }
+        std::println!("{msg}");
         self.ret()?;
         Ok(())
     }
@@ -951,29 +955,25 @@ impl Cpu8080 {
                 let old_pc = self.pc;
                 self.pc = rst_no as u16 * 8;
                 #[cfg(feature = "cpu_diag")]
-                println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
+                std::println!("Interrupted to {:#06x} from {:#06x}", self.pc, old_pc);
             }
-            _ => panic!("unsupported IRQ {rst_no}"),
+            _ => return Err(crate::EmulatorErrors::InvalidInterrupt(rst_no)),
         }
         Ok(())
     }
 
-    fn output(&mut self) -> Result<()> {
-        #[cfg(not(feature = "cpu_diag"))]
-        {
-            let dev_no = self.load_d8_operand()?;
-            (self.io_callbacks.output)(self.io_object, dev_no, self.reg_a);
-        }
-        Ok(())
+    fn output(&mut self) -> Result<ExecutionState> {
+        let dev_no = self.load_d8_operand()?;
+        Ok(ExecutionState::Output {
+            port: dev_no,
+            value: self.reg_a,
+        })
     }
 
-    fn input(&mut self) -> Result<()> {
-        #[cfg(not(feature = "cpu_diag"))]
-        {
-            let dev_no = self.load_d8_operand()?;
-            self.reg_a = (self.io_callbacks.input)(self.io_object, dev_no);
-        }
-        Ok(())
+    fn input(&mut self) -> Result<ExecutionState> {
+        let dev_no = self.load_d8_operand()?;
+        self.pending_input_port = Some(dev_no);
+        Ok(ExecutionState::Input { port: dev_no })
     }
 
     fn daa(&mut self) {
@@ -1001,7 +1001,7 @@ impl Cpu8080 {
         self.pc = u16::from_le_bytes([addr_lo, addr_hi]);
         self.sp += 2;
         #[cfg(feature = "cpu_diag")]
-        println!("Return back to {:#06x}, sp = {:#06x}", self.pc, self.sp);
+        std::println!("Return back to {:#06x}, sp = {:#06x}", self.pc, self.sp);
         Ok(())
     }
 
@@ -1024,8 +1024,91 @@ impl Cpu8080 {
         let old_pc = self.pc - 1;
         self.pc = u16::from_le_bytes(self.load_d16_operand()?);
         #[cfg(feature = "cpu_diag")]
-        println!("Jump from {:#06x} to {:#06x}", old_pc, self.pc);
+        std::println!("Jump from {:#06x} to {:#06x}", old_pc, self.pc);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+#[cfg(not(feature = "cpu_diag"))]
+mod io_tests {
+    use super::*;
+    use crate::Memory;
+
+    struct FlatMemory {
+        bytes: [u8; 0x40],
+    }
+
+    impl Memory for FlatMemory {
+        fn read(&self, addr: u16) -> Option<u8> {
+            self.bytes.get(addr as usize).copied()
+        }
+
+        fn write(&mut self, addr: u16, value: u8) -> bool {
+            if let Some(cell) = self.bytes.get_mut(addr as usize) {
+                *cell = value;
+                true
+            } else {
+                false
+            }
+        }
+
+        fn reset_ram(&mut self) {
+            self.bytes.fill(0);
+        }
+    }
+
+    #[test]
+    fn reports_input_and_accepts_host_value() {
+        let rom = [0xdb, 0x10, 0x76];
+        let mut ram = [0; 0x20];
+        let mut cpu = Cpu8080::new(&rom, &mut ram);
+
+        let input = cpu.run().unwrap();
+        assert_eq!(input.state, ExecutionState::Input { port: 0x10 });
+        assert_eq!(input.cycles, 10);
+
+        cpu.provide_input(0x42).unwrap();
+        assert_eq!(cpu.reg_a, 0x42);
+
+        let halted = cpu.run().unwrap();
+        assert_eq!(halted.state, ExecutionState::Halted);
+    }
+
+    #[test]
+    fn reports_output_to_host() {
+        let rom = [0x3e, 0x42, 0xd3, 0x05, 0x76];
+        let mut ram = [0; 0x20];
+        let mut cpu = Cpu8080::new(&rom, &mut ram);
+
+        let output = cpu.run().unwrap();
+        assert_eq!(
+            output.state,
+            ExecutionState::Output {
+                port: 0x05,
+                value: 0x42,
+            }
+        );
+
+        let halted = cpu.run().unwrap();
+        assert_eq!(halted.state, ExecutionState::Halted);
+    }
+
+    #[test]
+    fn supports_custom_memory_bus() {
+        let mut memory = FlatMemory { bytes: [0; 0x40] };
+        memory.bytes[..5].copy_from_slice(&[0x3e, 0x21, 0xd3, 0x07, 0x76]);
+
+        let mut cpu = Cpu8080::with_memory(memory);
+        let output = cpu.run().unwrap();
+
+        assert_eq!(
+            output.state,
+            ExecutionState::Output {
+                port: 0x07,
+                value: 0x21,
+            }
+        );
     }
 }
 
@@ -1036,7 +1119,9 @@ mod tests {
 
     #[test]
     fn cpu_opcode_tests() {
-        let mut cpu = Cpu8080::cpudiag_new(vec![0; 0], vec![0; 0]);
+        let rom = [];
+        let mut ram = [];
+        let mut cpu = Cpu8080::cpudiag_new(&rom, &mut ram);
 
         // test RAL & RAR
         cpu.reg_a = 0xb5;
