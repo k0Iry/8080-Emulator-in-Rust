@@ -295,17 +295,13 @@ pub unsafe extern "C" fn i8080_provide_input(cpu: *mut I8080Cpu, value: u8) -> I
 /// # Safety
 /// `cpu` must be a valid non-null pointer.
 #[no_mangle]
-pub unsafe extern "C" fn i8080_interrupt(
-    cpu: *mut I8080Cpu,
-    irq_no: u8,
-    allow_nested_interrupt: bool,
-) -> I8080Status {
+pub unsafe extern "C" fn i8080_interrupt(cpu: *mut I8080Cpu, irq_no: u8) -> I8080Status {
     let cpu = match cpu_mut(cpu) {
         Ok(cpu) => cpu,
         Err(status) => return status,
     };
 
-    match cpu.cpu.interrupt(irq_no, allow_nested_interrupt) {
+    match cpu.cpu.interrupt(irq_no) {
         Ok(()) => I8080Status::Ok,
         Err(err) => map_error(err),
     }

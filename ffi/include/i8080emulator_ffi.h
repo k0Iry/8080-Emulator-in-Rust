@@ -45,7 +45,7 @@ I8080Status i8080_deinit_cpu(I8080Cpu *cpu);
 I8080Status i8080_run(I8080Cpu *cpu, I8080StepResult *result);
 I8080Status i8080_step(I8080Cpu *cpu, I8080StepResult *result);
 I8080Status i8080_provide_input(I8080Cpu *cpu, uint8_t value);
-I8080Status i8080_interrupt(I8080Cpu *cpu, uint8_t irq_no, bool allow_nested_interrupt);
+I8080Status i8080_interrupt(I8080Cpu *cpu, uint8_t irq_no);
 I8080Status i8080_restart(I8080Cpu *cpu);
 
 bool i8080_is_halted(const I8080Cpu *cpu);

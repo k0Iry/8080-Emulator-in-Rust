@@ -525,11 +525,11 @@ impl<M: Memory> Cpu8080<M> {
         *self.conditon_codes.deref_mut() = 0;
     }
 
-    pub fn interrupt(&mut self, irq_no: u8, allow_nested_interrupt: bool) -> Result<()> {
+    pub fn interrupt(&mut self, irq_no: u8) -> Result<()> {
         if self.interrupt_enabled {
             self.rst(irq_no)?;
+            self.interrupt_enabled = false;
         }
-        self.interrupt_enabled = allow_nested_interrupt;
         Ok(())
     }
 
@@ -791,7 +791,7 @@ impl<M: Memory> Cpu8080<M> {
             0xe0 => self.ret_on_parity(!self.conditon_codes.is_parity_set())?,
             0xe1 => self.pop_h()?,
             0xe2 => self.jump_on_parity(!self.conditon_codes.is_parity_set())?,
-            0xe3 => self.xthl(),
+            0xe3 => self.xthl()?,
             0xe4 => self.call_on_parity(!self.conditon_codes.is_parity_set())?,
             0xe5 => self.push_h()?,
             0xe6 => self.ani()?,
@@ -855,15 +855,16 @@ impl<M: Memory> Cpu8080<M> {
         Ok(())
     }
 
-    fn xthl(&mut self) {
+    fn xthl(&mut self) -> Result<()> {
         let lo_addr = self.sp as usize;
         let hi_addr = (self.sp + 1) as usize;
-        let mem_lo = self.load_byte_from_memory(lo_addr).unwrap_or(0);
-        let mem_hi = self.load_byte_from_memory(hi_addr).unwrap_or(0);
-        let _ = self.store_to_ram(lo_addr, self.reg_l);
-        let _ = self.store_to_ram(hi_addr, self.reg_h);
+        let mem_lo = self.load_byte_from_memory(lo_addr)?;
+        let mem_hi = self.load_byte_from_memory(hi_addr)?;
+        self.store_to_ram(lo_addr, self.reg_l)?;
+        self.store_to_ram(hi_addr, self.reg_h)?;
         self.reg_l = mem_lo;
         self.reg_h = mem_hi;
+        Ok(())
     }
 
     fn xchg(&mut self) {
@@ -946,7 +947,7 @@ impl<M: Memory> Cpu8080<M> {
 
     fn rst(&mut self, rst_no: u8) -> Result<()> {
         match rst_no {
-            1..=7 => {
+            0..=7 => {
                 let pc_in_bytes = self.pc.to_be_bytes();
                 self.store_to_ram((self.sp - 1).into(), pc_in_bytes[0])?;
                 self.store_to_ram((self.sp - 2).into(), pc_in_bytes[1])?;
@@ -1109,6 +1110,46 @@ mod io_tests {
                 value: 0x21,
             }
         );
+    }
+
+    #[test]
+    fn executes_rst_zero_opcode() {
+        let rom = [0xc7];
+        let mut ram = [0; 0x20];
+        let mut cpu = Cpu8080::new(&rom, &mut ram);
+        cpu.sp = 0x20;
+
+        let outcome = cpu.step().unwrap();
+
+        assert_eq!(outcome.state, ExecutionState::Continue);
+        assert_eq!(cpu.pc, 0x0000);
+        assert_eq!(cpu.sp, 0x001e);
+        assert_eq!(cpu.get_ram()[0x1d], 0x01);
+        assert_eq!(cpu.get_ram()[0x1e], 0x00);
+    }
+
+    #[test]
+    fn interrupt_does_not_reenable_when_masked() {
+        let rom = [0x76];
+        let mut ram = [0; 0x20];
+        let mut cpu = Cpu8080::new(&rom, &mut ram);
+
+        cpu.interrupt(1).unwrap();
+
+        assert!(!cpu.interrupt_enabled);
+        assert_eq!(cpu.pc, 0);
+    }
+
+    #[test]
+    fn xthl_reports_memory_out_of_bounds() {
+        let memory = FlatMemory { bytes: [0; 0x40] };
+        let mut cpu = Cpu8080::with_memory(memory);
+        cpu.sp = 0x3f;
+
+        assert!(matches!(
+            cpu.xthl(),
+            Err(crate::EmulatorErrors::MemoryOutOfBounds(_))
+        ));
     }
 }
 
